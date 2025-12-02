@@ -76,8 +76,8 @@ mongoose.connection.on('disconnected', () => {
 // Email configuration with debugging
 const emailConfig = {
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT) : 465, // Try port 465 for SSL if not specified
-  secure: process.env.EMAIL_PORT ? (parseInt(process.env.EMAIL_PORT) === 465) : true, // Use true for port 465, false for port 587
+  port: process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT) : 587,
+  secure: process.env.EMAIL_PORT ? (parseInt(process.env.EMAIL_PORT) === 465) : false, // Use true for port 465, false for port 587
   auth: {
     user: process.env.EMAIL_USER || '',
     pass: process.env.EMAIL_PASS || ''
@@ -90,7 +90,11 @@ const emailConfig = {
   greetingTimeout: 60000,
   socketTimeout: 60000,
   debug: true, // Enable debug output
-  logger: true // Enable logger
+  logger: true, // Enable logger
+  // Additional connection options
+  pool: true,
+  maxConnections: 1,
+  maxMessages: Infinity
 };
 
 console.log('Email Configuration Check:');
