@@ -9,6 +9,7 @@
     "server": "nodemon server.js",
     "client": "cd src && npm run dev",
     "build": "cd src && npx vite build",
+    "frontend-build": "cd src && npm install && npx vite build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
