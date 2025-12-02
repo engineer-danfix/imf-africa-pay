@@ -66,7 +66,11 @@ const emailConfig = {
   },
   tls: {
     rejectUnauthorized: false
-  }
+  },
+  // Additional settings for better Gmail compatibility
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000
 };
 
 console.log('Email Configuration Check:');
@@ -77,8 +81,8 @@ console.log('- Pass:', emailConfig.auth.pass ? 'SET' : 'NOT SET');
 
 let transporter = null;
 
-// Initialize email transporter
-const initializeEmail = async () => {
+// Initialize email transporter with retry logic
+const initializeEmail = async (maxRetries = 3) => {
   try {
     if (!emailConfig.auth.user || !emailConfig.auth.pass) {
       console.log('Email configuration incomplete - email notifications disabled');
@@ -86,9 +90,24 @@ const initializeEmail = async () => {
     }
 
     transporter = nodemailer.createTransport(emailConfig);
-    await transporter.verify();
-    console.log('Email transporter initialized successfully');
-    return true;
+    
+    // Retry logic for email verification
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await transporter.verify();
+        console.log(`Email transporter initialized successfully (attempt ${attempt})`);
+        return true;
+      } catch (error) {
+        console.log(`Email verification attempt ${attempt} failed:`, error.message);
+        if (attempt < maxRetries) {
+          console.log(`Retrying in 2 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    }
+    
+    console.log('Failed to initialize email transporter after all retries');
+    return false;
   } catch (error) {
     console.log('Failed to initialize email transporter:', error.message);
     return false;
