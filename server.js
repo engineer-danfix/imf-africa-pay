@@ -74,8 +74,8 @@ mongoose.connection.on('disconnected', () => {
 // Email configuration with debugging
 const emailConfig = {
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT) || 587,
-  secure: false,
+  port: parseInt(process.env.EMAIL_PORT) || 465, // Try port 465 for SSL
+  secure: true, // Use true for port 465, false for port 587
   auth: {
     user: process.env.EMAIL_USER || '',
     pass: process.env.EMAIL_PASS || ''
@@ -106,7 +106,7 @@ console.log('- Timeouts:', {
 let transporter = null;
 let dbConnectionStatus = 'DISCONNECTED';
 
-// Initialize email transporter with detailed error handling
+// Initialize email transporter with detailed error handling and fallback
 const initializeEmail = async (maxRetries = 3) => {
   try {
     if (!emailConfig.auth.user || !emailConfig.auth.pass) {
@@ -114,7 +114,8 @@ const initializeEmail = async (maxRetries = 3) => {
       return false;
     }
 
-    console.log('Attempting to create email transporter...');
+    // Try primary configuration first
+    console.log('Attempting to create email transporter with primary config...');
     transporter = nodemailer.createTransport(emailConfig);
     
     console.log('Attempting to verify email transporter...');
@@ -129,9 +130,37 @@ const initializeEmail = async (maxRetries = 3) => {
         console.log(`Email verification attempt ${attempt} failed:`);
         console.log('- Error Code:', error.code);
         console.log('- Error Message:', error.message);
-        console.log('- Error Stack:', error.stack);
         
-        if (attempt < maxRetries) {
+        // If this is the last attempt with port 465, try fallback to port 587
+        if (attempt === maxRetries && emailConfig.port === 465) {
+          console.log('Trying fallback configuration with port 587...');
+          const fallbackConfig = {
+            ...emailConfig,
+            port: 587,
+            secure: false
+          };
+          
+          transporter = nodemailer.createTransport(fallbackConfig);
+          
+          // Retry with fallback configuration
+          for (let fallbackAttempt = 1; fallbackAttempt <= maxRetries; fallbackAttempt++) {
+            try {
+              console.log(`Fallback email verification attempt ${fallbackAttempt}/${maxRetries}`);
+              await transporter.verify();
+              console.log(`Email transporter initialized successfully with fallback config (attempt ${fallbackAttempt})`);
+              return true;
+            } catch (fallbackError) {
+              console.log(`Fallback email verification attempt ${fallbackAttempt} failed:`);
+              console.log('- Error Code:', fallbackError.code);
+              console.log('- Error Message:', fallbackError.message);
+              
+              if (fallbackAttempt < maxRetries) {
+                console.log(`Retrying fallback in 3 seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+              }
+            }
+          }
+        } else if (attempt < maxRetries) {
           console.log(`Retrying in 3 seconds...`);
           await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
@@ -373,6 +402,7 @@ app.post('/api/test-email', async (req, res) => {
       text
     });
 
+    
     res.json({
       success: true,
       message: 'Test email sent successfully'
