@@ -9,6 +9,8 @@ require('dotenv').config();
 
 // Initialize Express app
 const app = express();
+
+// Use Render's port or default to 3000
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -621,7 +623,7 @@ const startServer = async () => {
   await ensureUploadsDir();
   const emailInitialized = await initializeEmail();
   
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`IMF Africa Pay Backend Server running on port ${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/api/health`);
     
