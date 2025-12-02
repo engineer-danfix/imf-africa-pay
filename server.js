@@ -55,28 +55,61 @@ mongoose.connect(MONGODB_URI, {
   console.log('Using in-memory storage for payments (data will not persist)');
 });
 
-// Email configuration
-const EMAIL_CONFIG = {
+// Email configuration with debugging
+const emailConfig = {
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT || 587,
+  port: parseInt(process.env.EMAIL_PORT) || 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASS || 'your-app-password'
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || ''
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 };
 
-// Create email transporter
-const transporter = nodemailer.createTransport(EMAIL_CONFIG);
+console.log('Email Configuration Check:');
+console.log('- Host:', emailConfig.host);
+console.log('- Port:', emailConfig.port);
+console.log('- User:', emailConfig.auth.user ? 'SET' : 'NOT SET');
+console.log('- Pass:', emailConfig.auth.pass ? 'SET' : 'NOT SET');
+
+let transporter = null;
+
+// Initialize email transporter
+const initializeEmail = async () => {
+  try {
+    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+      console.log('Email configuration incomplete - email notifications disabled');
+      return false;
+    }
+
+    transporter = nodemailer.createTransport(emailConfig);
+    await transporter.verify();
+    console.log('Email transporter initialized successfully');
+    return true;
+  } catch (error) {
+    console.log('Failed to initialize email transporter:', error.message);
+    return false;
+  }
+};
 
 // Test email configuration on startup
 const testEmailConfig = async () => {
   try {
+    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+      console.log('Email configuration incomplete - skipping email setup');
+      return false;
+    }
+
+    const transporter = nodemailer.createTransport(emailConfig);
     await transporter.verify();
-    console.log('Email configuration is valid');
+    console.log('Email configuration verified successfully');
+    return true;
   } catch (error) {
-    console.warn('Email configuration warning:', error.message);
-    console.log('Email notifications will be disabled');
+    console.log('Email configuration error:', error.message);
+    return false;
   }
 };
 
@@ -277,74 +310,128 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Send transfer receipt endpoint
+// Send transfer receipt
 app.post('/api/send-transfer-receipt', upload.single('receipt'), async (req, res) => {
   try {
-    // Parse paymentData if it's a string
-    let { paymentData, paymentReference, fileName } = req.body;
-    
-    // If paymentData is a string, parse it as JSON
-    if (typeof paymentData === 'string') {
-      try {
-        paymentData = JSON.parse(paymentData);
-      } catch (parseError) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid payment data format' 
-        });
-      }
-    }
-    
     // Validate required fields
-    if (!paymentData || !paymentData.name || !paymentData.email) {
+    const { name, email, amount, serviceType, reference } = req.body;
+    
+    if (!name || !email || !amount || !serviceType || !reference) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Missing required payment information' 
+        error: 'All fields are required' 
       });
     }
-    
-    // Format time of payment
-    const now = new Date();
-    const timeOfPayment = now.toLocaleTimeString();
-    const dateOfPayment = now;
-    
-    // Create payment record
-    const paymentRecordData = {
-      paymentData,
-      paymentReference,
-      fileName,
-      receiptPath: req.file ? `/uploads/${req.file.filename}` : null,
-      timeOfPayment,
-      dateOfPayment
-    };
-    
-    const savedPayment = await savePayment(paymentRecordData);
-    
-    // Send payment confirmation emails with the original file name
-    if (savedPayment.receiptPath) {
-      await sendPaymentConfirmationEmail(
-        paymentData, 
-        paymentReference, 
-        savedPayment.receiptPath,
-        fileName // Pass the original file name
-      );
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid email format' 
+      });
     }
-    
-    // Send success response
+
+    // Validate amount is a number
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid amount' 
+      });
+    }
+
+    // Handle file upload
+    let filePath = '';
+    if (req.file) {
+      filePath = req.file.path;
+    }
+
+    // Save payment record
+    const paymentData = {
+      name,
+      email,
+      amount: amountNum,
+      serviceType,
+      reference,
+      receiptPath: filePath,
+      timestamp: new Date()
+    };
+
+    const savedPayment = await savePayment(paymentData);
+
+    // Send email notifications if transporter is available
+    if (transporter) {
+      try {
+        // Send confirmation to user
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
+          to: email,
+          subject: 'Payment Receipt Received',
+          html: `
+            <h2>Payment Receipt Received</h2>
+            <p>Dear ${name},</p>
+            <p>Thank you for your payment. We have received your transfer receipt.</p>
+            <p><strong>Payment Details:</strong></p>
+            <ul>
+              <li>Name: ${name}</li>
+              <li>Amount: $${amountNum.toFixed(2)}</li>
+              <li>Service: ${serviceType}</li>
+              <li>Reference: ${reference}</li>
+              <li>Date: ${new Date().toLocaleString()}</li>
+            </ul>
+            <p>We will process your payment shortly.</p>
+            <p>Best regards,<br>IMF Africa Team</p>
+          `,
+          attachments: filePath ? [{
+            filename: req.file.originalname,
+            path: filePath
+          }] : []
+        });
+
+        // Send notification to admin
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
+          to: process.env.IMF_EMAIL || 'admin@imfafrica.org',
+          subject: 'New Payment Receipt Submitted',
+          html: `
+            <h2>New Payment Receipt</h2>
+            <p>A new payment receipt has been submitted:</p>
+            <p><strong>Payment Details:</strong></p>
+            <ul>
+              <li>Name: ${name}</li>
+              <li>Email: ${email}</li>
+              <li>Amount: $${amountNum.toFixed(2)}</li>
+              <li>Service: ${serviceType}</li>
+              <li>Reference: ${reference}</li>
+              <li>Date: ${new Date().toLocaleString()}</li>
+            </ul>
+          `,
+          attachments: filePath ? [{
+            filename: req.file.originalname,
+            path: filePath
+          }] : []
+        });
+
+        console.log('Email notifications sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send email notifications:', emailError.message);
+        // Don't fail the request if email fails, just log the error
+      }
+    } else {
+      console.log('Email transporter not available - skipping email notifications');
+    }
+
     res.json({ 
       success: true, 
-      message: 'Payment submitted successfully',
-      reference: paymentReference,
+      message: 'Transfer receipt submitted successfully',
       data: savedPayment
     });
-    
-    console.log(`Payment received from ${paymentData.name} (${paymentData.email})`);
-    
   } catch (error) {
-    console.error('Error processing payment:', error);
+    console.error('Error processing transfer receipt:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message || 'Failed to process payment' 
+      error: 'Failed to process transfer receipt' 
     });
   }
 });
@@ -425,11 +512,15 @@ app.use((req, res) => {
 // Start server
 const startServer = async () => {
   await ensureUploadsDir();
-  await testEmailConfig();
+  const emailInitialized = await initializeEmail();
   
   app.listen(PORT, () => {
     console.log(`IMF Africa Pay Backend Server running on port ${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/api/health`);
+    
+    if (!emailInitialized) {
+      console.log('Email notifications are disabled due to configuration issues');
+    }
   });
 };
 
