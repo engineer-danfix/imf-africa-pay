@@ -55,6 +55,22 @@ mongoose.connect(MONGODB_URI, {
   console.log('Using in-memory storage for payments (data will not persist)');
 });
 
+// MongoDB connection events
+mongoose.connection.on('connected', () => {
+  console.log('Connected to MongoDB Atlas');
+  dbConnectionStatus = 'CONNECTED';
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+  dbConnectionStatus = 'ERROR';
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('Disconnected from MongoDB Atlas');
+  dbConnectionStatus = 'DISCONNECTED';
+});
+
 // Email configuration with debugging
 const emailConfig = {
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
@@ -68,20 +84,29 @@ const emailConfig = {
     rejectUnauthorized: false
   },
   // Additional settings for better Gmail compatibility
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000
+  connectionTimeout: 60000,
+  greetingTimeout: 60000,
+  socketTimeout: 60000,
+  debug: true, // Enable debug output
+  logger: true // Enable logger
 };
 
 console.log('Email Configuration Check:');
 console.log('- Host:', emailConfig.host);
 console.log('- Port:', emailConfig.port);
 console.log('- User:', emailConfig.auth.user ? 'SET' : 'NOT SET');
-console.log('- Pass:', emailConfig.auth.pass ? 'SET' : 'NOT SET');
+// Don't log the password for security
+console.log('- TLS Settings:', emailConfig.tls);
+console.log('- Timeouts:', {
+  connection: emailConfig.connectionTimeout,
+  greeting: emailConfig.greetingTimeout,
+  socket: emailConfig.socketTimeout
+});
 
 let transporter = null;
+let dbConnectionStatus = 'DISCONNECTED';
 
-// Initialize email transporter with retry logic
+// Initialize email transporter with detailed error handling
 const initializeEmail = async (maxRetries = 3) => {
   try {
     if (!emailConfig.auth.user || !emailConfig.auth.pass) {
@@ -89,27 +114,38 @@ const initializeEmail = async (maxRetries = 3) => {
       return false;
     }
 
+    console.log('Attempting to create email transporter...');
     transporter = nodemailer.createTransport(emailConfig);
     
+    console.log('Attempting to verify email transporter...');
     // Retry logic for email verification
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        console.log(`Email verification attempt ${attempt}/${maxRetries}`);
         await transporter.verify();
         console.log(`Email transporter initialized successfully (attempt ${attempt})`);
         return true;
       } catch (error) {
-        console.log(`Email verification attempt ${attempt} failed:`, error.message);
+        console.log(`Email verification attempt ${attempt} failed:`);
+        console.log('- Error Code:', error.code);
+        console.log('- Error Message:', error.message);
+        console.log('- Error Stack:', error.stack);
+        
         if (attempt < maxRetries) {
-          console.log(`Retrying in 2 seconds...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          console.log(`Retrying in 3 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } else {
+          console.log('All email verification attempts failed');
         }
       }
     }
     
-    console.log('Failed to initialize email transporter after all retries');
     return false;
   } catch (error) {
-    console.log('Failed to initialize email transporter:', error.message);
+    console.log('Critical error during email transporter initialization:');
+    console.log('- Error Name:', error.name);
+    console.log('- Error Message:', error.message);
+    console.log('- Error Stack:', error.stack);
     return false;
   }
 };
@@ -300,31 +336,52 @@ const getPaymentById = async (id) => {
 
 // API Routes
 
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
+// Health check endpoint with email status
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    mongodb: dbConnectionStatus,
+    email: transporter ? 'CONFIGURED' : 'NOT CONFIGURED',
+    port: PORT
+  });
+});
+
+// Email test endpoint (for debugging)
+app.post('/api/test-email', async (req, res) => {
   try {
-    // Check MongoDB connection
-    const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
-    
-    // Check email configuration
-    let emailStatus = 'Unknown';
-    try {
-      await transporter.verify();
-      emailStatus = 'Valid';
-    } catch (error) {
-      emailStatus = 'Invalid';
+    if (!transporter) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email transporter not initialized'
+      });
     }
+
+    const { to, subject, text } = req.body;
     
-    res.json({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      database: dbStatus,
-      email: emailStatus
+    if (!to || !subject || !text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: to, subject, text'
+      });
+    }
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
+      to,
+      subject,
+      text
+    });
+
+    res.json({
+      success: true,
+      message: 'Test email sent successfully'
     });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'ERROR', 
-      error: error.message 
+    console.error('Email test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
