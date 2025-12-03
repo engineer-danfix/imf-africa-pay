@@ -14,8 +14,9 @@ app.use(express.json());
 // Use the same port as your main application
 const PORT = process.env.PORT || 3001;
 
-// MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/imf-africa-pay';
+// MongoDB connection - explicitly use local MongoDB for local service
+// This ensures we don't accidentally connect to Atlas even if .env has Atlas URI
+const MONGODB_URI = 'mongodb://localhost:27017/imf-africa-pay';
 
 // Payment Schema (matching your existing schema with notification tracking)
 const paymentSchema = new mongoose.Schema({
