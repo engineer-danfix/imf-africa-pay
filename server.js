@@ -37,18 +37,16 @@ mongoose.connect(MONGODB_URI, {
   
   // Define Payment Schema only after successful connection
   const paymentSchema = new mongoose.Schema({
-    paymentData: {
-      name: String,
-      email: String,
-      amount: Number,
-      serviceType: String
-    },
-    paymentReference: String,
-    fileName: String,
+    name: String,
+    email: String,
+    amount: Number,
+    serviceType: String,
+    reference: String,
     receiptPath: String,
-    dateOfPayment: { type: Date, default: Date.now },
-    timeOfPayment: String,
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
+    // Add notification tracking fields
+    notificationSent: { type: Boolean, default: false },
+    notificationTimestamp: { type: Date, default: null }
   });
   
   PaymentModel = mongoose.model('Payment', paymentSchema);
@@ -329,43 +327,81 @@ const sendPaymentConfirmationEmail = async (paymentData, paymentReference, recei
   }
 };
 
-// Function to save payment (handles both MongoDB and in-memory storage)
+// Function to save payment data
 const savePayment = async (paymentData) => {
-  if (PaymentModel && mongoose.connection.readyState === 1) {
-    // Use MongoDB
-    const paymentRecord = new PaymentModel(paymentData);
-    return await paymentRecord.save();
-  } else {
-    // Use in-memory storage
-    const paymentRecord = {
-      _id: Date.now().toString(),
-      ...paymentData,
-      timestamp: new Date()
-    };
-    inMemoryPayments.push(paymentRecord);
-    return paymentRecord;
+  try {
+    if (PaymentModel) {
+      // Use MongoDB
+      const paymentRecord = new PaymentModel({
+        name: paymentData.name,
+        email: paymentData.email,
+        amount: paymentData.amount,
+        serviceType: paymentData.serviceType,
+        reference: paymentData.reference,
+        receiptPath: paymentData.receiptPath,
+        timestamp: paymentData.timestamp || new Date(),
+        notificationSent: false,
+        notificationTimestamp: null
+      });
+      
+      const savedPayment = await paymentRecord.save();
+      console.log(`Payment record saved to MongoDB: ${savedPayment._id}`);
+      return savedPayment;
+    } else {
+      // Use in-memory storage
+      const id = Date.now().toString();
+      const paymentRecord = {
+        _id: id,
+        name: paymentData.name,
+        email: paymentData.email,
+        amount: paymentData.amount,
+        serviceType: paymentData.serviceType,
+        reference: paymentData.reference,
+        receiptPath: paymentData.receiptPath,
+        timestamp: paymentData.timestamp || new Date(),
+        notificationSent: false,
+        notificationTimestamp: null
+      };
+      
+      inMemoryPayments[id] = paymentRecord;
+      console.log(`Payment record saved to memory: ${id}`);
+      return paymentRecord;
+    }
+  } catch (error) {
+    console.error('Error saving payment:', error);
+    throw error;
   }
 };
 
 // Function to get all payments
 const getAllPayments = async () => {
-  if (PaymentModel && mongoose.connection.readyState === 1) {
-    // Use MongoDB
-    return await PaymentModel.find().sort({ timestamp: -1 });
-  } else {
-    // Use in-memory storage
-    return inMemoryPayments.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  try {
+    if (PaymentModel && mongoose.connection.readyState === 1) {
+      // Use MongoDB
+      return await PaymentModel.find().sort({ timestamp: -1 });
+    } else {
+      // Use in-memory storage
+      return Object.values(inMemoryPayments).sort((a, b) => b.timestamp - a.timestamp);
+    }
+  } catch (error) {
+    console.error('Error retrieving payments:', error);
+    throw error;
   }
 };
 
 // Function to get payment by ID
 const getPaymentById = async (id) => {
-  if (PaymentModel && mongoose.connection.readyState === 1) {
-    // Use MongoDB
-    return await PaymentModel.findById(id);
-  } else {
-    // Use in-memory storage
-    return inMemoryPayments.find(p => p._id === id);
+  try {
+    if (PaymentModel && mongoose.connection.readyState === 1) {
+      // Use MongoDB
+      return await PaymentModel.findById(id);
+    } else {
+      // Use in-memory storage
+      return inMemoryPayments[id] || null;
+    }
+  } catch (error) {
+    console.error('Error retrieving payment:', error);
+    throw error;
   }
 };
 
@@ -473,13 +509,16 @@ app.post('/api/send-transfer-receipt', upload.single('receipt'), async (req, res
     const savedPayment = await savePayment(paymentData);
 
     // Send email notifications if transporter is available
+    let emailSuccess = true;
+    let emailErrorMessage = '';
+    
     if (transporter) {
       try {
         // Send confirmation to user
         await transporter.sendMail({
           from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
           to: email,
-          subject: 'Payment Receipt Received',
+          subject: 'Payment Receipt Confirmation',
           html: `
             <h2>Payment Receipt Received</h2>
             <p>Dear ${name},</p>
@@ -526,17 +565,42 @@ app.post('/api/send-transfer-receipt', upload.single('receipt'), async (req, res
         });
 
         console.log('Email notifications sent successfully');
+        
+        // Update payment record to mark notification as sent
+        try {
+          if (PaymentModel) {
+            await PaymentModel.findByIdAndUpdate(savedPayment._id, {
+              notificationSent: true,
+              notificationTimestamp: new Date()
+            });
+          } else {
+            // For in-memory storage
+            if (inMemoryPayments[savedPayment._id]) {
+              inMemoryPayments[savedPayment._id].notificationSent = true;
+              inMemoryPayments[savedPayment._id].notificationTimestamp = new Date();
+            }
+          }
+        } catch (updateError) {
+          console.log('Failed to update notification status:', updateError.message);
+        }
+        
       } catch (emailError) {
         console.error('Failed to send email notifications:', emailError.message);
+        emailSuccess = false;
+        emailErrorMessage = emailError.message;
         // Don't fail the request if email fails, just log the error
       }
     } else {
       console.log('Email transporter not available - skipping email notifications');
+      emailSuccess = false;
+      emailErrorMessage = 'Email transporter not available';
     }
 
     res.json({ 
       success: true, 
       message: 'Transfer receipt submitted successfully',
+      emailSuccess: emailSuccess,
+      emailError: emailErrorMessage,
       data: savedPayment
     });
   } catch (error) {
