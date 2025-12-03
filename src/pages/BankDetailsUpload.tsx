@@ -69,20 +69,14 @@ const BankDetailsUpload: React.FC = () => {
     setUploading(true);
     setError(null);
     try {
-      const paymentData = {
-        name,
-        email,
-        amount: plan?.amount || 0,
-        serviceType: plan?.name || '',
-      };
-      const paymentReference = `IMF-${Date.now()}`;
-      
       // Create FormData object for multipart/form-data
       const formData = new FormData();
       formData.append('receipt', file);
-      formData.append('paymentData', JSON.stringify(paymentData));
-      formData.append('paymentReference', paymentReference);
-      formData.append('fileName', file.name);
+      formData.append('name', name);
+      formData.append('email', email);
+      formData.append('amount', (plan?.amount || 0).toString());
+      formData.append('serviceType', plan?.name || '');
+      formData.append('reference', `IMF-${Date.now()}`);
       
       const res = await fetch(`${API_BASE}/api/send-transfer-receipt`, {
         method: 'POST',
