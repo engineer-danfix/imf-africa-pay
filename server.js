@@ -508,99 +508,15 @@ app.post('/api/send-transfer-receipt', upload.single('receipt'), async (req, res
 
     const savedPayment = await savePayment(paymentData);
 
-    // Send email notifications if transporter is available
-    let emailSuccess = true;
-    let emailErrorMessage = '';
+    // Skip email notifications on Render deployment
+    // Email notifications will be handled by the local email service
+    console.log('Payment saved successfully. Email notifications will be sent via local service.');
     
-    if (transporter) {
-      try {
-        // Send confirmation to user
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
-          to: email,
-          subject: 'Payment Receipt Confirmation',
-          html: `
-            <h2>Payment Receipt Received</h2>
-            <p>Dear ${name},</p>
-            <p>Thank you for your payment. We have received your transfer receipt.</p>
-            <p><strong>Payment Details:</strong></p>
-            <ul>
-              <li>Name: ${name}</li>
-              <li>Amount: $${amountNum.toFixed(2)}</li>
-              <li>Service: ${serviceType}</li>
-              <li>Reference: ${reference}</li>
-              <li>Date: ${new Date().toLocaleString()}</li>
-            </ul>
-            <p>We will process your payment shortly.</p>
-            <p>Best regards,<br>IMF Africa Team</p>
-          `,
-          attachments: filePath ? [{
-            filename: req.file.originalname,
-            path: filePath
-          }] : []
-        });
-
-        // Send notification to admin
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
-          to: process.env.IMF_EMAIL || 'admin@imfafrica.org',
-          subject: 'New Payment Receipt Submitted',
-          html: `
-            <h2>New Payment Receipt</h2>
-            <p>A new payment receipt has been submitted:</p>
-            <p><strong>Payment Details:</strong></p>
-            <ul>
-              <li>Name: ${name}</li>
-              <li>Email: ${email}</li>
-              <li>Amount: $${amountNum.toFixed(2)}</li>
-              <li>Service: ${serviceType}</li>
-              <li>Reference: ${reference}</li>
-              <li>Date: ${new Date().toLocaleString()}</li>
-            </ul>
-          `,
-          attachments: filePath ? [{
-            filename: req.file.originalname,
-            path: filePath
-          }] : []
-        });
-
-        console.log('Email notifications sent successfully');
-        
-        // Update payment record to mark notification as sent
-        try {
-          if (PaymentModel) {
-            await PaymentModel.findByIdAndUpdate(savedPayment._id, {
-              notificationSent: true,
-              notificationTimestamp: new Date()
-            });
-          } else {
-            // For in-memory storage
-            if (inMemoryPayments[savedPayment._id]) {
-              inMemoryPayments[savedPayment._id].notificationSent = true;
-              inMemoryPayments[savedPayment._id].notificationTimestamp = new Date();
-            }
-          }
-        } catch (updateError) {
-          console.log('Failed to update notification status:', updateError.message);
-        }
-        
-      } catch (emailError) {
-        console.error('Failed to send email notifications:', emailError.message);
-        emailSuccess = false;
-        emailErrorMessage = emailError.message;
-        // Don't fail the request if email fails, just log the error
-      }
-    } else {
-      console.log('Email transporter not available - skipping email notifications');
-      emailSuccess = false;
-      emailErrorMessage = 'Email transporter not available';
-    }
-
     res.json({ 
       success: true, 
-      message: 'Transfer receipt submitted successfully',
-      emailSuccess: emailSuccess,
-      emailError: emailErrorMessage,
+      message: 'Transfer receipt submitted successfully. Email notifications will be sent separately.',
+      emailSuccess: false,
+      emailError: 'Email notifications handled by local service',
       data: savedPayment
     });
   } catch (error) {
@@ -688,15 +604,14 @@ app.use((req, res) => {
 // Start server
 const startServer = async () => {
   await ensureUploadsDir();
-  const emailInitialized = await initializeEmail();
+  // Skip email initialization on Render deployment
+  // Email notifications will be handled by the local email service
+  console.log('Skipping email initialization on Render deployment');
   
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`IMF Africa Pay Backend Server running on port ${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/api/health`);
-    
-    if (!emailInitialized) {
-      console.log('Email notifications are disabled due to configuration issues');
-    }
+    console.log('Email notifications are handled by the local email service');
   });
 };
 
