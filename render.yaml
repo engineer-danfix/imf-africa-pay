@@ -4,12 +4,17 @@ services:
     env: node
     plan: free
     buildCommand: |
+      # Install root dependencies
       npm install
-      cd src && npm install
-      npm install --save-dev vite
-      npm run build
+      # Install frontend dependencies and build
+      cd src
+      npm install
+      # Install vite globally to avoid permission issues
+      npm install -g vite
+      # Build the frontend
+      npx vite build
       cd ..
-      # Copy built frontend to dist directory for production serving
+      # Create dist directory and copy built files
       mkdir -p dist
       if [ -d "src/dist" ]; then
         cp -r src/dist/* dist/
