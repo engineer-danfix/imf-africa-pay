@@ -246,6 +246,10 @@ const sendPaymentConfirmationEmail = async (paymentData, paymentReference, recei
       return;
     }
     
+    // Determine currency symbol based on amount (if less than 1000, assume USD, otherwise assume NGN)
+    const currencySymbol = paymentData.amount < 1000 ? '$' : '₦';
+    const formattedAmount = `${currencySymbol}${paymentData.amount.toLocaleString()}`;
+    
     // Email to user
     const userMailOptions = {
       from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
@@ -261,7 +265,7 @@ const sendPaymentConfirmationEmail = async (paymentData, paymentReference, recei
             <h3>Payment Details</h3>
             <p><strong>Reference:</strong> ${paymentReference}</p>
             <p><strong>Service:</strong> ${paymentData.serviceType}</p>
-            <p><strong>Amount:</strong> ₦${paymentData.amount.toLocaleString()}</p>
+            <p><strong>Amount:</strong> ${formattedAmount}</p>
             <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
             <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
           </div>
@@ -300,7 +304,7 @@ const sendPaymentConfirmationEmail = async (paymentData, paymentReference, recei
             <p><strong>Payer Name:</strong> ${paymentData.name}</p>
             <p><strong>Payer Email:</strong> ${paymentData.email}</p>
             <p><strong>Service:</strong> ${paymentData.serviceType}</p>
-            <p><strong>Amount:</strong> ₦${paymentData.amount.toLocaleString()}</p>
+            <p><strong>Amount:</strong> ${formattedAmount}</p>
             <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
             <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
           </div>
@@ -508,17 +512,46 @@ app.post('/api/send-transfer-receipt', upload.single('receipt'), async (req, res
 
     const savedPayment = await savePayment(paymentData);
 
-    // Skip email notifications on Render deployment
-    // Email notifications will be handled by the local email service
-    console.log('Payment saved successfully. Email notifications will be sent via local service.');
-    
-    res.json({ 
-      success: true, 
-      message: 'Transfer receipt submitted successfully. Email notifications will be sent separately.',
-      emailSuccess: false,
-      emailError: 'Email notifications handled by local service',
-      data: savedPayment
-    });
+    // Automatically send payment confirmation emails
+    if (transporter) {
+      try {
+        await sendPaymentConfirmationEmail(
+          paymentData, 
+          paymentData.reference, 
+          paymentData.receiptPath,
+          req.file ? req.file.originalname : 'payment_receipt.pdf'
+        );
+        
+        res.json({ 
+          success: true, 
+          message: 'Transfer receipt submitted successfully and confirmation emails sent.',
+          emailSuccess: true,
+          data: savedPayment
+        });
+      } catch (emailError) {
+        console.error('Error sending confirmation emails:', emailError);
+        
+        // Still return success for payment but indicate email failure
+        res.json({ 
+          success: true, 
+          message: 'Transfer receipt submitted successfully but email notification failed.',
+          emailSuccess: false,
+          emailError: emailError.message,
+          data: savedPayment
+        });
+      }
+    } else {
+      // Skip email notifications if transporter not configured
+      console.log('Email transporter not configured - skipping confirmation emails');
+      
+      res.json({ 
+        success: true, 
+        message: 'Transfer receipt submitted successfully.',
+        emailSuccess: false,
+        emailError: 'Email transporter not configured',
+        data: savedPayment
+      });
+    }
   } catch (error) {
     console.error('Error processing transfer receipt:', error);
     res.status(500).json({ 

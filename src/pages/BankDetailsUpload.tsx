@@ -88,7 +88,16 @@ const BankDetailsUpload: React.FC = () => {
         showToast(result.error || 'Failed to submit payment', 'error');
         throw new Error(result.error || 'Failed to submit payment');
       }
-      showToast('Payment submitted successfully!', 'success');
+      
+      // Show appropriate success message based on email status
+      if (result.emailSuccess) {
+        showToast('Payment submitted successfully and confirmation email sent!', 'success');
+      } else if (result.emailError) {
+        showToast(`Payment submitted successfully but email notification failed: ${result.emailError}`, 'error');
+      } else {
+        showToast('Payment submitted successfully!', 'success');
+      }
+      
       navigate('/success', { state: { plan } });
     } catch (err: any) {
       setError(err.message || 'Failed to upload receipt. Please try again.');
