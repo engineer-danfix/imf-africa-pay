@@ -8,7 +8,7 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd src && npm run dev",
-    "build": "bash render-build.sh",
+    "build": "node render-build.js",
     "frontend-build": "cd src && npm install && npm run build",
     "static-build": "cd src && npm install && npm run build",
     "local-email": "node local-email-service.js",
