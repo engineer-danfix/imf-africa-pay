@@ -1,712 +1,154 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
 const mongoose = require('mongoose');
+const multer = require('multer');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// Initialize Express app
 const app = express();
-
-// Use Render's port or default to 3000
-const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
 
-// Serve static files from the 'uploads' directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve static files from the dist directory if it exists
+const distPath = path.join(__dirname, 'dist');
+if (require('fs').existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
 
-// MongoDB Atlas connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/imf-africa-pay';
+// Serve static files from src/dist for development compatibility
+app.use('/src/dist', express.static(path.join(__dirname, 'src', 'dist')));
 
-// In-memory storage for payments when MongoDB is not available
-let inMemoryPayments = [];
-let PaymentModel = null;
-
-// Try to connect to MongoDB
-mongoose.connect(MONGODB_URI, {
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/imf-africa-pay', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-}).then(() => {
-  console.log('Connected to MongoDB Atlas');
-  
-  // Define Payment Schema only after successful connection
-  const paymentSchema = new mongoose.Schema({
-    name: String,
-    email: String,
-    amount: Number,
-    serviceType: String,
-    reference: String,
-    receiptPath: String,
-    timestamp: { type: Date, default: Date.now },
-    // Add notification tracking fields
-    notificationSent: { type: Boolean, default: false },
-    notificationTimestamp: { type: Date, default: null }
-  });
-  
-  PaymentModel = mongoose.model('Payment', paymentSchema);
-}).catch((err) => {
-  console.warn('MongoDB connection warning:', err.message);
-  console.log('Using in-memory storage for payments (data will not persist)');
-});
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
 
-// MongoDB connection events
-mongoose.connection.on('connected', () => {
-  console.log('Connected to MongoDB Atlas');
-  dbConnectionStatus = 'CONNECTED';
-});
-
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-  dbConnectionStatus = 'ERROR';
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('Disconnected from MongoDB Atlas');
-  dbConnectionStatus = 'DISCONNECTED';
-});
-
-// Email configuration with debugging
-const emailConfig = {
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT) : 587,
-  secure: process.env.EMAIL_PORT ? (parseInt(process.env.EMAIL_PORT) === 465) : false,
-  auth: {
-    user: process.env.EMAIL_USER || '',
-    pass: process.env.EMAIL_PASS || ''
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  // Additional settings for better Gmail compatibility
-  connectionTimeout: 60000,
-  greetingTimeout: 60000,
-  socketTimeout: 60000,
-  debug: true,
-  logger: true,
-  // Gmail-specific settings that often work
-  service: 'gmail',
-  tls: {
-    ciphers: 'SSLv3',
-    rejectUnauthorized: false
-  }
-};
-
-console.log('Email Configuration Check:');
-console.log('- Host:', emailConfig.host);
-console.log('- Port:', emailConfig.port);
-console.log('- Secure:', emailConfig.secure);
-console.log('- User:', emailConfig.auth.user ? 'SET' : 'NOT SET');
-// Don't log the password for security
-console.log('- TLS Settings:', emailConfig.tls);
-console.log('- Timeouts:', {
-  connection: emailConfig.connectionTimeout,
-  greeting: emailConfig.greetingTimeout,
-  socket: emailConfig.socketTimeout
-});
-
-let transporter = null;
-let dbConnectionStatus = 'DISCONNECTED';
-
-// Initialize email transporter with detailed error handling and fallback
-const initializeEmail = async (maxRetries = 3) => {
-  try {
-    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
-      console.log('Email configuration incomplete - email notifications disabled');
-      return false;
-    }
-
-    // Try primary configuration first
-    console.log('Attempting to create email transporter with primary config...');
-    transporter = nodemailer.createTransport(emailConfig);
-    
-    console.log('Attempting to verify email transporter...');
-    // Retry logic for email verification
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Email verification attempt ${attempt}/${maxRetries}`);
-        await transporter.verify();
-        console.log(`Email transporter initialized successfully (attempt ${attempt})`);
-        return true;
-      } catch (error) {
-        console.log(`Email verification attempt ${attempt} failed:`);
-        console.log('- Error Code:', error.code);
-        console.log('- Error Message:', error.message);
-        console.log('- Error Details:', error);
-        
-        // If this is the last attempt, try a few specific fixes
-        if (attempt === maxRetries) {
-          console.log('Trying alternative Gmail configuration...');
-          
-          // Try with different TLS settings
-          const altConfig = {
-            ...emailConfig,
-            tls: {
-              rejectUnauthorized: false,
-              ciphers: 'SSLv3'
-            }
-          };
-          
-          transporter = nodemailer.createTransport(altConfig);
-          
-          try {
-            console.log('Testing alternative configuration...');
-            await transporter.verify();
-            console.log('Alternative email transporter initialized successfully');
-            return true;
-          } catch (altError) {
-            console.log('Alternative configuration also failed:');
-            console.log('- Error Code:', altError.code);
-            console.log('- Error Message:', altError.message);
-          }
-        } else if (attempt < maxRetries) {
-          console.log(`Retrying in 3 seconds...`);
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } else {
-          console.log('All email verification attempts failed');
-        }
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    console.log('Critical error during email transporter initialization:');
-    console.log('- Error Name:', error.name);
-    console.log('- Error Message:', error.message);
-    console.log('- Error Stack:', error.stack);
-    return false;
-  }
-};
-
-// Test email configuration on startup
-const testEmailConfig = async () => {
-  try {
-    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
-      console.log('Email configuration incomplete - skipping email setup');
-      return false;
-    }
-
-    const transporter = nodemailer.createTransport(emailConfig);
-    await transporter.verify();
-    console.log('Email configuration verified successfully');
-    return true;
-  } catch (error) {
-    console.log('Email configuration error:', error.message);
-    return false;
-  }
-};
-
-// Ensure uploads directory exists
-const ensureUploadsDir = async () => {
-  try {
-    await fs.access('uploads');
-  } catch {
-    await fs.mkdir('uploads');
-  }
-};
-
-// Configure multer for file uploads
+// Multer setup for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, Date.now() + '-' + file.originalname);
   }
 });
 
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+const upload = multer({ storage: storage });
+
+// Email transporter setup
+const transporter = nodemailer.createTransporter({
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'image/jpeg' || 
-        file.mimetype === 'image/png' || 
-        file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPG, PNG, or PDF files are allowed'));
-    }
-  }
 });
 
-// Function to send payment confirmation emails
-const sendPaymentConfirmationEmail = async (paymentData, paymentReference, receiptPath, fileName) => {
-  try {
-    // Skip if email is not configured
-    if (!process.env.EMAIL_USER || process.env.EMAIL_USER === 'your-email@gmail.com') {
-      console.log('Email not configured - skipping payment confirmation emails');
-      return;
-    }
-    
-    // Determine currency symbol based on amount (if less than 1000, assume USD, otherwise assume NGN)
-    const currencySymbol = paymentData.amount < 1000 ? '$' : '₦';
-    const formattedAmount = `${currencySymbol}${paymentData.amount.toLocaleString()}`;
-    
-    // Email to user
-    const userMailOptions = {
-      from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
-      to: paymentData.email,
-      subject: 'Payment Received Confirmation - IMF Africa Pay',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">Payment Received Confirmation</h2>
-          <p>Dear ${paymentData.name},</p>
-          <p>Thank you for your payment. We have successfully received your payment with the following details:</p>
-          
-          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <h3>Payment Details</h3>
-            <p><strong>Reference:</strong> ${paymentReference}</p>
-            <p><strong>Service:</strong> ${paymentData.serviceType}</p>
-            <p><strong>Amount:</strong> ${formattedAmount}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-            <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
-          </div>
-          
-          <p>Your payment receipt is attached to this email for your records.</p>
-          <p>If you have any questions, please contact our support team.</p>
-          
-          <hr style="margin: 30px 0;">
-          <p style="color: #64748b; font-size: 14px;">
-            Best regards,<br>
-            <strong>IMF Africa Pay Team</strong>
-          </p>
-        </div>
-      `,
-      attachments: receiptPath ? [
-        {
-          filename: fileName || 'payment_receipt.pdf',
-          path: path.join(__dirname, receiptPath)
-        }
-      ] : []
-    };
+// Payment data storage (in production, use a database)
+let payments = [];
 
-    // Email to IMF
-    const imfMailOptions = {
-      from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
-      to: process.env.IMF_EMAIL || 'admin@imfafrica.org',
-      subject: 'New Payment Received - IMF Africa Pay',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">New Payment Received</h2>
-          <p>A new payment has been received with the following details:</p>
-          
-          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <h3>Payment Details</h3>
-            <p><strong>Reference:</strong> ${paymentReference}</p>
-            <p><strong>Payer Name:</strong> ${paymentData.name}</p>
-            <p><strong>Payer Email:</strong> ${paymentData.email}</p>
-            <p><strong>Service:</strong> ${paymentData.serviceType}</p>
-            <p><strong>Amount:</strong> ${formattedAmount}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-            <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
-          </div>
-          
-          <p>Payment receipt is attached for verification.</p>
-        </div>
-      `,
-      attachments: receiptPath ? [
-        {
-          filename: fileName || 'payment_receipt.pdf',
-          path: path.join(__dirname, receiptPath)
-        }
-      ] : []
-    };
+// Routes
+app.get('/api/payments', (req, res) => {
+  res.json(payments);
+});
 
-    // Send emails
-    await transporter.sendMail(userMailOptions);
-    await transporter.sendMail(imfMailOptions);
-    
-    console.log(`Payment confirmation emails sent for reference: ${paymentReference}`);
-  } catch (error) {
-    console.error('Error sending payment confirmation emails:', error);
-    // Don't throw error as we don't want to fail the payment if email fails
-  }
-};
+app.post('/api/payment', (req, res) => {
+  const { name, email, phone, plan, amount } = req.body;
+  const newPayment = { id: Date.now().toString(), name, email, phone, plan, amount, status: 'pending' };
+  payments.push(newPayment);
+  
+  // Send email notification to admin
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: process.env.IMF_EMAIL,
+    subject: 'New Payment Received',
+    text: `A new payment has been received:
 
-// Function to save payment data
-const savePayment = async (paymentData) => {
-  try {
-    if (PaymentModel) {
-      // Use MongoDB
-      const paymentRecord = new PaymentModel({
-        name: paymentData.name,
-        email: paymentData.email,
-        amount: paymentData.amount,
-        serviceType: paymentData.serviceType,
-        reference: paymentData.reference,
-        receiptPath: paymentData.receiptPath,
-        timestamp: paymentData.timestamp || new Date(),
-        notificationSent: false,
-        notificationTimestamp: null
-      });
-      
-      const savedPayment = await paymentRecord.save();
-      console.log(`Payment record saved to MongoDB: ${savedPayment._id}`);
-      return savedPayment;
+Name: ${name}
+Email: ${email}
+Phone: ${phone}
+Plan: ${plan}
+Amount: ${amount}
+Status: pending`
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Email sending error:', error);
     } else {
-      // Use in-memory storage
-      const id = Date.now().toString();
-      const paymentRecord = {
-        _id: id,
-        name: paymentData.name,
-        email: paymentData.email,
-        amount: paymentData.amount,
-        serviceType: paymentData.serviceType,
-        reference: paymentData.reference,
-        receiptPath: paymentData.receiptPath,
-        timestamp: paymentData.timestamp || new Date(),
-        notificationSent: false,
-        notificationTimestamp: null
-      };
-      
-      inMemoryPayments[id] = paymentRecord;
-      console.log(`Payment record saved to memory: ${id}`);
-      return paymentRecord;
+      console.log('Email sent: ' + info.response);
     }
-  } catch (error) {
-    console.error('Error saving payment:', error);
-    throw error;
-  }
-};
-
-// Function to get all payments
-const getAllPayments = async () => {
-  try {
-    if (PaymentModel && mongoose.connection.readyState === 1) {
-      // Use MongoDB
-      return await PaymentModel.find().sort({ timestamp: -1 });
-    } else {
-      // Use in-memory storage
-      return Object.values(inMemoryPayments).sort((a, b) => b.timestamp - a.timestamp);
-    }
-  } catch (error) {
-    console.error('Error retrieving payments:', error);
-    throw error;
-  }
-};
-
-// Function to get payment by ID
-const getPaymentById = async (id) => {
-  try {
-    if (PaymentModel && mongoose.connection.readyState === 1) {
-      // Use MongoDB
-      return await PaymentModel.findById(id);
-    } else {
-      // Use in-memory storage
-      return inMemoryPayments[id] || null;
-    }
-  } catch (error) {
-    console.error('Error retrieving payment:', error);
-    throw error;
-  }
-};
-
-// API Routes
-
-// Health check endpoint with email status
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    mongodb: dbConnectionStatus,
-    email: transporter ? 'CONFIGURED' : 'NOT CONFIGURED',
-    port: PORT
   });
+
+  res.json({ success: true, payment: newPayment });
 });
 
-// Email test endpoint (for debugging)
-app.post('/api/test-email', async (req, res) => {
-  try {
-    if (!transporter) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email transporter not initialized'
-      });
-    }
-
-    const { to, subject, text } = req.body;
-    
-    if (!to || !subject || !text) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: to, subject, text'
-      });
-    }
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"IMF Africa Pay" <no-reply@imfafrica.org>',
-      to,
-      subject,
-      text
-    });
-
-    
-    res.json({
-      success: true,
-      message: 'Test email sent successfully'
-    });
-  } catch (error) {
-    console.error('Email test failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+// File upload route
+app.post('/api/upload', upload.single('receipt'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
   }
-});
 
-// Send transfer receipt
-app.post('/api/send-transfer-receipt', upload.single('receipt'), async (req, res) => {
-  try {
-    // Validate required fields
-    const { name, email, amount, serviceType, reference } = req.body;
-    
-    if (!name || !email || !amount || !serviceType || !reference) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'All fields are required' 
-      });
-    }
+  // Send email notification to admin about the uploaded receipt
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: process.env.IMF_EMAIL,
+    subject: 'Payment Receipt Uploaded',
+    text: `A payment receipt has been uploaded:
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid email format' 
-      });
-    }
-
-    // Validate amount is a number
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid amount' 
-      });
-    }
-
-    // Handle file upload
-    let filePath = '';
-    if (req.file) {
-      filePath = req.file.path;
-    }
-
-    // Save payment record
-    const paymentData = {
-      name,
-      email,
-      amount: amountNum,
-      serviceType,
-      reference,
-      receiptPath: filePath,
-      timestamp: new Date()
-    };
-
-    const savedPayment = await savePayment(paymentData);
-
-    // Automatically send payment confirmation emails
-    if (transporter) {
-      try {
-        await sendPaymentConfirmationEmail(
-          paymentData, 
-          paymentData.reference, 
-          paymentData.receiptPath,
-          req.file ? req.file.originalname : 'payment_receipt.pdf'
-        );
-        
-        res.json({ 
-          success: true, 
-          message: 'Transfer receipt submitted successfully and confirmation emails sent.',
-          emailSuccess: true,
-          data: savedPayment
-        });
-      } catch (emailError) {
-        console.error('Error sending confirmation emails:', emailError);
-        
-        // Still return success for payment but indicate email failure
-        res.json({ 
-          success: true, 
-          message: 'Transfer receipt submitted successfully but email notification failed.',
-          emailSuccess: false,
-          emailError: emailError.message,
-          data: savedPayment
-        });
+File: ${req.file.filename}
+Original Name: ${req.file.originalname}
+Size: ${req.file.size} bytes`,
+    attachments: [
+      {
+        filename: req.file.originalname,
+        path: req.file.path
       }
-    } else {
-      // Skip email notifications if transporter not configured
-      console.log('Email transporter not configured - skipping confirmation emails');
-      
+    ]
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Email sending error:', error);
+      // Still return success since the file was uploaded, even if email failed
       res.json({ 
         success: true, 
-        message: 'Transfer receipt submitted successfully.',
-        emailSuccess: false,
-        emailError: 'Email transporter not configured',
-        data: savedPayment
+        message: 'File uploaded successfully but email notification failed',
+        filename: req.file.filename,
+        emailStatus: 'failed'
       });
-    }
-  } catch (error) {
-    console.error('Error processing transfer receipt:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to process transfer receipt' 
-    });
-  }
-});
-
-// Get all payment records (for admin purposes)
-app.get('/api/payments', async (req, res) => {
-  try {
-    const payments = await getAllPayments();
-    res.json({ 
-      success: true, 
-      data: payments 
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to retrieve payments' 
-    });
-  }
-});
-
-// Get a specific payment record
-app.get('/api/payments/:id', async (req, res) => {
-  try {
-    const payment = await getPaymentById(req.params.id);
-    if (!payment) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Payment record not found' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      data: payment 
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to retrieve payment' 
-    });
-  }
-});
-
-// Serve the React frontend (if built)
-if (process.env.NODE_ENV === 'production') {
-  // First try the standard build location
-  const distPath = path.join(__dirname, 'src/dist');
-  const rootDistPath = path.join(__dirname, 'dist');
-  
-  console.log('Looking for static files...');
-  console.log('- src/dist path:', distPath);
-  console.log('- root dist path:', rootDistPath);
-  
-  // Check if src/dist directory exists and has files
-  try {
-    const srcDistExists = fs.existsSync(distPath) && fs.readdirSync(distPath).length > 0;
-    if (srcDistExists) {
-      console.log('Serving static files from src/dist');
-      app.use(express.static(distPath));
     } else {
-      throw new Error('src/dist is empty or does not exist');
-    }
-  } catch (err) {
-    console.log('src/dist not available, trying root dist directory');
-    // Fallback to root dist directory if it exists and has files
-    try {
-      const rootDistExists = fs.existsSync(rootDistPath) && fs.readdirSync(rootDistPath).length > 0;
-      if (rootDistExists) {
-        console.log('Serving static files from dist');
-        app.use(express.static(rootDistPath));
-      } else {
-        console.log('No static files found to serve');
-      }
-    } catch (err2) {
-      console.log('No static files found to serve');
-    }
-  }
-  
-  app.get('*', (req, res) => {
-    // Try to send index.html from src/dist first
-    const indexPath = path.join(__dirname, 'src/dist', 'index.html');
-    fs.access(indexPath, fs.constants.F_OK, (err) => {
-      if (!err) {
-        res.sendFile(indexPath);
-      } else {
-        // If index.html is not in src/dist, try the root dist directory
-        const rootIndexPath = path.join(__dirname, 'dist', 'index.html');
-        fs.access(rootIndexPath, fs.constants.F_OK, (err2) => {
-          if (!err2) {
-            res.sendFile(rootIndexPath);
-          } else {
-            // If neither location has index.html, serve a basic response
-            res.status(404).send(`
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>IMF Africa Pay</title>
-                </head>
-                <body>
-                  <h1>IMF Africa Pay</h1>
-                  <p>Frontend build files not found. Please check the deployment.</p>
-                </body>
-              </html>
-            `);
-          }
-        });
-      }
-    });
-  });
-}
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'File size must be less than 5MB' 
+      console.log('Email sent: ' + info.response);
+      res.json({ 
+        success: true, 
+        message: 'File uploaded and email notification sent successfully',
+        filename: req.file.filename,
+        emailStatus: 'sent'
       });
     }
+  });
+});
+
+// Serve the frontend for all other routes (for React Router)
+app.get('*', (req, res) => {
+  const indexPath = path.join(__dirname, 'dist', 'index.html');
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // Fallback for development
+    res.json({ message: 'Server is running', status: 'ok' });
   }
-  
-  res.status(500).json({ 
-    success: false, 
-    error: err.message || 'Internal server error' 
-  });
 });
 
-// Handle 404 for undefined routes
-app.use((req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    error: 'Endpoint not found' 
-  });
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-// Start server
-const startServer = async () => {
-  await ensureUploadsDir();
-  // Skip email initialization on Render deployment
-  // Email notifications will be handled by the local email service
-  console.log('Skipping email initialization on Render deployment');
-  
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`IMF Africa Pay Backend Server running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/api/health`);
-    console.log('Email notifications are handled by the local email service');
-  });
-};
-
-startServer();
-
-module.exports = app;
