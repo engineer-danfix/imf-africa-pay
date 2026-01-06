@@ -3,22 +3,7 @@ services:
     name: imf-africa-pay
     env: node
     plan: free
-    buildCommand: |
-      # Install root dependencies
-      npm install
-      # Install frontend dependencies and build
-      cd src
-      npm install
-      # Install vite globally to avoid permission issues
-      npm install -g vite
-      # Build the frontend
-      npx vite build
-      cd ..
-      # Create dist directory and copy built files
-      mkdir -p dist
-      if [ -d "src/dist" ]; then
-        cp -r src/dist/* dist/
-      fi
+    buildCommand: npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
