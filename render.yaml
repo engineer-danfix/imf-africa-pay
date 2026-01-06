@@ -8,10 +8,9 @@ services:
       cd src && npm install
       npm run build
       cd ..
-      # Copy built frontend to dist directory
-      if [ -d "src/dist" ]; then
-        cp -r src/dist dist
-      fi
+      # Copy built frontend to dist directory for production serving
+      mkdir -p dist
+      cp -r src/dist/* dist/
     startCommand: npm start
     envVars:
       - key: NODE_ENV

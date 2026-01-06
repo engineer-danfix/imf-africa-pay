@@ -10,7 +10,7 @@
     "client": "cd src && npm run dev",
     "build": "cd src && npx vite build",
     "frontend-build": "cd src && npm install && npx vite build",
-    "static-build": "cd src && npm install && npx vite build && xcopy /E /I /Y .\\src\\dist .\\dist",
+    "static-build": "cd src && npm install && npx vite build",
     "local-email": "node local-email-service.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

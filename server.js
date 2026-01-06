@@ -604,28 +604,39 @@ app.get('/api/payments/:id', async (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   // First try the standard build location
   const distPath = path.join(__dirname, 'src/dist');
-  console.log('Looking for static files at:', distPath);
+  const rootDistPath = path.join(__dirname, 'dist');
   
-  // Check if dist directory exists
+  console.log('Looking for static files...');
+  console.log('- src/dist path:', distPath);
+  console.log('- root dist path:', rootDistPath);
+  
+  // Check if src/dist directory exists and has files
   try {
-    fs.accessSync(distPath);
-    console.log('Serving static files from src/dist');
-    app.use(express.static(distPath));
+    const srcDistExists = fs.existsSync(distPath) && fs.readdirSync(distPath).length > 0;
+    if (srcDistExists) {
+      console.log('Serving static files from src/dist');
+      app.use(express.static(distPath));
+    } else {
+      throw new Error('src/dist is empty or does not exist');
+    }
   } catch (err) {
-    console.log('src/dist not found, trying alternative locations');
-    // Fallback to root dist directory if it exists
-    const rootDistPath = path.join(__dirname, 'dist');
+    console.log('src/dist not available, trying root dist directory');
+    // Fallback to root dist directory if it exists and has files
     try {
-      fs.accessSync(rootDistPath);
-      console.log('Serving static files from dist');
-      app.use(express.static(rootDistPath));
+      const rootDistExists = fs.existsSync(rootDistPath) && fs.readdirSync(rootDistPath).length > 0;
+      if (rootDistExists) {
+        console.log('Serving static files from dist');
+        app.use(express.static(rootDistPath));
+      } else {
+        console.log('No static files found to serve');
+      }
     } catch (err2) {
       console.log('No static files found to serve');
     }
   }
   
   app.get('*', (req, res) => {
-    // Try to send index.html from the correct location
+    // Try to send index.html from src/dist first
     const indexPath = path.join(__dirname, 'src/dist', 'index.html');
     fs.access(indexPath, fs.constants.F_OK, (err) => {
       if (!err) {
@@ -637,7 +648,19 @@ if (process.env.NODE_ENV === 'production') {
           if (!err2) {
             res.sendFile(rootIndexPath);
           } else {
-            res.status(404).json({ error: 'Frontend build files not found' });
+            // If neither location has index.html, serve a basic response
+            res.status(404).send(`
+              <!DOCTYPE html>
+              <html>
+                <head>
+                  <title>IMF Africa Pay</title>
+                </head>
+                <body>
+                  <h1>IMF Africa Pay</h1>
+                  <p>Frontend build files not found. Please check the deployment.</p>
+                </body>
+              </html>
+            `);
           }
         });
       }
