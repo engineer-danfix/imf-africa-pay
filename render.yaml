@@ -10,7 +10,9 @@ services:
       cd ..
       # Copy built frontend to dist directory for production serving
       mkdir -p dist
-      cp -r src/dist/* dist/
+      if [ -d "src/dist" ]; then
+        cp -r src/dist/* dist/
+      fi
     startCommand: npm start
     envVars:
       - key: NODE_ENV

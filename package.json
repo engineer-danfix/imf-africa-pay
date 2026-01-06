@@ -8,9 +8,9 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd src && npm run dev",
-    "build": "cd src && npx vite build",
-    "frontend-build": "cd src && npm install && npx vite build",
-    "static-build": "cd src && npm install && npx vite build",
+    "build": "cd src && npm install && npm run build",
+    "frontend-build": "cd src && npm install && npm run build",
+    "static-build": "cd src && npm install && npm run build",
     "local-email": "node local-email-service.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
