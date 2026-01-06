@@ -8,7 +8,7 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd src && npm run dev",
-    "build": "cd src && npm install && npm run build && cd .. && mkdir -p dist && cp -r src/dist/* dist/",
+    "build": "rm -rf dist && mkdir -p dist && cd src && npm install && npm run build && cd .. && cp -r src/dist/* dist/ && ls -la dist/",
     "frontend-build": "cd src && npm install && npm run build",
     "static-build": "cd src && npm install && npm run build",
     "local-email": "node local-email-service.js",
