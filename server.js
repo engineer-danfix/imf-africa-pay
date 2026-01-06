@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
@@ -14,12 +15,17 @@ app.use(express.json());
 
 // Serve static files from the dist directory if it exists
 const distPath = path.join(__dirname, 'dist');
-if (require('fs').existsSync(distPath)) {
+if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
+  console.log('Serving static files from root dist directory');
 }
 
 // Serve static files from src/dist for development compatibility
-app.use('/src/dist', express.static(path.join(__dirname, 'src', 'dist')));
+const srcDistPath = path.join(__dirname, 'src', 'dist');
+if (fs.existsSync(srcDistPath)) {
+  app.use(express.static(srcDistPath));
+  console.log('Serving static files from src/dist directory');
+}
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/imf-africa-pay', {
@@ -139,13 +145,23 @@ Size: ${req.file.size} bytes`,
 
 // Serve the frontend for all other routes (for React Router)
 app.get('*', (req, res) => {
-  const indexPath = path.join(__dirname, 'dist', 'index.html');
-  if (require('fs').existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    // Fallback for development
-    res.json({ message: 'Server is running', status: 'ok' });
+  // Try root dist first
+  const rootIndexPath = path.join(__dirname, 'dist', 'index.html');
+  if (fs.existsSync(rootIndexPath)) {
+    console.log('Serving index.html from root dist');
+    return res.sendFile(rootIndexPath);
   }
+  
+  // Try src/dist as fallback
+  const srcIndexPath = path.join(__dirname, 'src', 'dist', 'index.html');
+  if (fs.existsSync(srcIndexPath)) {
+    console.log('Serving index.html from src/dist');
+    return res.sendFile(srcIndexPath);
+  }
+  
+  // Fallback for development
+  console.log('No index.html found, sending fallback response');
+  res.json({ message: 'Server is running', status: 'ok' });
 });
 
 const PORT = process.env.PORT || 5000;
