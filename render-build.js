@@ -18,9 +18,9 @@ try {
   console.log('Installing frontend dependencies...');
   execSync('npm install', { stdio: 'inherit' });
 
-  // Build the frontend using parcel
-  console.log('Building frontend with parcel...');
-  execSync('npx parcel build index.html', { stdio: 'inherit' });
+  // Build the frontend using vite with npx to ensure it works
+  console.log('Building frontend with vite...');
+  execSync('npx vite build', { stdio: 'inherit' });
 
   // Go back to root
   process.chdir(__dirname);
