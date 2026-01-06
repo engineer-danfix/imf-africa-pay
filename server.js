@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
@@ -602,10 +602,46 @@ app.get('/api/payments/:id', async (req, res) => {
 
 // Serve the React frontend (if built)
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'src/dist')));
+  // First try the standard build location
+  const distPath = path.join(__dirname, 'src/dist');
+  console.log('Looking for static files at:', distPath);
+  
+  // Check if dist directory exists
+  try {
+    fs.accessSync(distPath);
+    console.log('Serving static files from src/dist');
+    app.use(express.static(distPath));
+  } catch (err) {
+    console.log('src/dist not found, trying alternative locations');
+    // Fallback to root dist directory if it exists
+    const rootDistPath = path.join(__dirname, 'dist');
+    try {
+      fs.accessSync(rootDistPath);
+      console.log('Serving static files from dist');
+      app.use(express.static(rootDistPath));
+    } catch (err2) {
+      console.log('No static files found to serve');
+    }
+  }
   
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'src/dist', 'index.html'));
+    // Try to send index.html from the correct location
+    const indexPath = path.join(__dirname, 'src/dist', 'index.html');
+    fs.access(indexPath, fs.constants.F_OK, (err) => {
+      if (!err) {
+        res.sendFile(indexPath);
+      } else {
+        // If index.html is not in src/dist, try the root dist directory
+        const rootIndexPath = path.join(__dirname, 'dist', 'index.html');
+        fs.access(rootIndexPath, fs.constants.F_OK, (err2) => {
+          if (!err2) {
+            res.sendFile(rootIndexPath);
+          } else {
+            res.status(404).json({ error: 'Frontend build files not found' });
+          }
+        });
+      }
+    });
   });
 }
 

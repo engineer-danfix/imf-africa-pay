@@ -3,7 +3,15 @@ services:
     name: imf-africa-pay
     env: node
     plan: free
-    buildCommand: npm install && cd src && npm install && npx vite build
+    buildCommand: |
+      npm install
+      cd src && npm install
+      npm run build
+      cd ..
+      # Copy built frontend to dist directory
+      if [ -d "src/dist" ]; then
+        cp -r src/dist dist
+      fi
     startCommand: npm start
     envVars:
       - key: NODE_ENV
