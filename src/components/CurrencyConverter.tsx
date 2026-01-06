@@ -64,7 +64,7 @@ const CurrencyConverter: React.FC<{ usdAmount: number }> = ({ usdAmount }) => {
           { code: 'AUD', name: 'Australian Dollar', rate: 1.50, flag: '🇦🇺' },
           { code: 'ZAR', name: 'South African Rand', rate: 18.50, flag: '🇿🇦' },
           { code: 'KES', name: 'Kenyan Shilling', rate: 130, flag: '🇰🇪' },
-          { code: 'GHS', name: 'Ghanaian Cedi', rate: 12.50, flag: '🇬🇭' },
+          { code: 'GHS', name: 'Ghanaian Cedi', rate: 14.50, flag: '🇬🇭' }, // Updated to more realistic rate
           { code: 'UGX', name: 'Ugandan Shilling', rate: 3700, flag: '🇺🇬' },
           { code: 'TZS', name: 'Tanzanian Shilling', rate: 2500, flag: '🇹🇿' },
         ];

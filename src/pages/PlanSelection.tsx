@@ -3,45 +3,50 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import CurrencyConverter from '../components/CurrencyConverter';
 
-// Updated pricing: Original amount + $25,000 converted to USD at approximate rate
-// Assuming $1 = ₦1,500 exchange rate for calculation purposes
+// Updated pricing: Original Naira amounts converted to USD using approximate exchange rate
+// Using $1 = ₦1500 exchange rate (this is an approximation - actual rates fluctuate)
 const plans = [
   {
     name: 'Membership Only',
-    price: '$100,000',
-    amount: 100000,
+    // Original: ₦75,000 + ₦25,000 = ₦100,000 -> ~$67
+    price: '$67',
+    amount: 67,
     description: 'Entry-level licensing for new ministers.',
     features: ['Administrative Fee', 'Membership Fee'],
     color: 'from-green-400 to-blue-500',
   },
   {
     name: 'Renewal Only',
-    price: '$100,000',
-    amount: 100000,
+    // Original: ₦75,000 + ₦25,000 = ₦100,000 -> ~$67
+    price: '$67',
+    amount: 67,
     description: 'Renewal for existing ministers.',
     features: ['Administrative Fee', 'Renewal Fee'],
     color: 'from-blue-500 to-purple-500',
   },
   {
     name: 'Membership and Licensing',
-    price: '$150,000',
-    amount: 150000,
+    // Original: ₦125,000 + ₦25,000 = ₦150,000 -> ~$100
+    price: '$100',
+    amount: 100,
     description: 'Full membership with licensing credentials.',
     features: ['Administrative Fee', 'Licensing Fee', 'Membership Fee'],
     color: 'from-purple-500 to-pink-500',
   },
   {
     name: 'Membership, Licensing and Ordination',
-    price: '$200,000',
-    amount: 200000,
+    // Original: ₦175,000 + ₦25,000 = ₦200,000 -> ~$133
+    price: '$133',
+    amount: 133,
     description: 'Complete credentials package for senior ministers.',
     features: ['Administrative Fee', 'Licensing Fee', 'Membership Fee', 'Ordination Fee'],
     color: 'from-pink-500 to-red-500',
   },
   {
     name: 'Membership and Ordination',
-    price: '$150,000',
-    amount: 150000,
+    // Original: ₦125,000 + ₦25,000 = ₦150,000 -> ~$100
+    price: '$100',
+    amount: 100,
     description: 'Advanced credentials for experienced ministers.',
     features: ['Administrative Fee', 'Membership Fee', 'Ordination Fee'],
     color: 'from-red-500 to-yellow-500',
