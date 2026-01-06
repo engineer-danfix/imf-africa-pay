@@ -6,13 +6,20 @@ const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const plan = location.state?.plan;
+  const existingUser = location.state?.existingUser || false;
+  const userType = location.state?.userType;
+  const userData = location.state?.userData;
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigate('/form', { state: { plan } });
+      if (existingUser && userData) {
+        navigate('/form', { state: { existingUser, userType, userData } });
+      } else {
+        navigate('/form', { state: { plan } });
+      }
     }, 3000);
     return () => clearTimeout(timer);
-  }, [navigate, plan]);
+  }, [navigate, plan, existingUser, userType, userData]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-100 to-blue-100 dark:from-gray-800 dark:to-gray-900 py-12 px-4">
@@ -52,10 +59,30 @@ const PaymentSuccess: React.FC = () => {
             <div className="font-bold text-base text-green-700 dark:text-green-400">{plan.name} ({plan.price})</div>
           </div>
         )}
+        
+        {existingUser && userData && (
+          <div className="mb-6 p-3 bg-green-50 dark:bg-gray-700 rounded-lg text-center w-full">
+            <div className="text-sm text-gray-600 dark:text-gray-300">Existing User Details:</div>
+            <div className="font-bold text-base text-green-700 dark:text-green-400">
+              {userType === 'membership' 
+                ? `Membership #${userData.membershipNumber}` 
+                : `License #${userData.licenseNumber}`}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {userData.fullName}
+            </div>
+          </div>
+        )}
         <motion.button
           whileTap={{ scale: 0.98 }}
           className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition-all mt-2 w-full text-sm"
-          onClick={() => navigate('/form', { state: { plan } })}
+          onClick={() => {
+            if (existingUser && userData) {
+              navigate('/form', { state: { existingUser, userType, userData } });
+            } else {
+              navigate('/form', { state: { plan } });
+            }
+          }}
         >
           Continue to Application Form
         </motion.button>

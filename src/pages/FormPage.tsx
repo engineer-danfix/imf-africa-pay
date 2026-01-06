@@ -6,6 +6,9 @@ const FormPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const plan = location.state?.plan;
+  const existingUser = location.state?.existingUser || false;
+  const userType = location.state?.userType;
+  const userData = location.state?.userData;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 to-green-100 dark:from-gray-800 dark:to-gray-900 py-8 px-2">
@@ -29,6 +32,20 @@ const FormPage: React.FC = () => {
           </div>
         )}
         
+        {existingUser && userData && (
+          <div className="mb-6 p-3 bg-green-50 dark:bg-gray-700 rounded-lg text-center w-full">
+            <div className="text-sm text-gray-600 dark:text-gray-300">Existing User Details:</div>
+            <div className="font-bold text-base text-green-700 dark:text-green-400">
+              {userType === 'membership' 
+                ? `Membership #${userData.membershipNumber}` 
+                : `License #${userData.licenseNumber}`}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {userData.fullName}
+            </div>
+          </div>
+        )}
+        
         <div className="w-full h-[60vh] mb-6">
           <iframe
             style={{ height: '100%', width: '100%' }}
@@ -45,7 +62,7 @@ const FormPage: React.FC = () => {
         <motion.button
           whileTap={{ scale: 0.98 }}
           className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-6 rounded-lg shadow transition-all w-full sm:w-auto text-sm"
-          onClick={() => navigate('/thank-you', { state: { plan } })}
+          onClick={() => navigate('/thank-you', { state: { plan, existingUser, userType, userData } })}
         >
           Finish Application
         </motion.button>

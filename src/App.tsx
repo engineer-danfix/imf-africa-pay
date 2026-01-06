@@ -7,6 +7,7 @@ const BankDetailsUpload = lazy(() => import('./pages/BankDetailsUpload'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
 const FinalThankYou = lazy(() => import('./pages/FinalThankYou'));
 const FormPage = lazy(() => import('./pages/FormPage'));
+const ExistingUserForm = lazy(() => import('./pages/ExistingUserForm'));
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -63,6 +64,7 @@ const App: React.FC = () => {
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route path="/" element={<PlanSelection />} />
+            <Route path="/existing-user" element={<ExistingUserForm />} />
             <Route path="/bank-details" element={<BankDetailsUpload />} />
             <Route path="/success" element={<PaymentSuccess />} />
             <Route path="/thank-you" element={<FinalThankYou />} />
