@@ -11,8 +11,9 @@ const BANK_DETAILS = {
   accountNumber: '1223664859',
 };
 
-// Helper to get backend URL (adjust for production as needed)
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Helper to get backend URL - use relative path for same-origin requests
+// This works both in development and production regardless of the deployment URL
+const API_BASE = '';
 
 const MAX_FILE_SIZE_MB = 5;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -83,6 +84,10 @@ const BankDetailsUpload: React.FC = () => {
         method: 'POST',
         body: formData,
       });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       
       const result = await res.json();
       if (!result.success) {

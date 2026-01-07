@@ -9,8 +9,11 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Enable CORS for all routes to handle cross-origin requests
+app.use(cors({
+  origin: '*', // Allow all origins in development; you may want to restrict this in production
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -225,6 +228,11 @@ Service: ${serviceType || 'N/A'}`,
       emailStatus: 'failed'
     });
   });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // Serve the frontend for all other routes (for React Router)
