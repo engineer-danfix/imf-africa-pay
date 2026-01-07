@@ -11,7 +11,7 @@ const app = express();
 
 // Enable CORS for all routes to handle cross-origin requests
 app.use(cors({
-  origin: '*', // Allow all origins in development; you may want to restrict this in production
+  origin: process.env.FRONTEND_URL || '*', // Use specific frontend URL in production
   credentials: true
 }));
 app.use(express.json());
@@ -275,6 +275,7 @@ app.get('*', (req, res) => {
   res.json({ message: 'Server is running', status: 'ok' });
 });
 
+// Use the PORT environment variable provided by Render or default to 5000
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
