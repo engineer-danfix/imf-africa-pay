@@ -1,233 +1,183 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useToast } from '../components/ToastProvider';
+
+// Helper to get backend URL - use the backend URL when deployed separately
+// This allows the frontend to work with a separate backend deployment
+const API_BASE = import.meta.env.VITE_API_URL || 'https://imf-africa-pay-backend.onrender.com';
 
 const ExistingUserForm: React.FC = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [userType, setUserType] = useState<'membership' | 'licensed' | null>(null);
   const [formData, setFormData] = useState({
-    fullName: '',
     membershipNumber: '',
-    licenseNumber: ''
+    licenseNumber: '',
+    fullName: '',
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleUserTypeSelect = (type: 'membership' | 'licensed') => {
-    setUserType(type);
-    // Clear previous data when switching types
-    setFormData({
-      fullName: '',
-      membershipNumber: '',
-      licenseNumber: ''
-    });
-    setErrors({});
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    
+    // Validation
+    if (!userType) {
+      showToast('Please select a user type', 'error');
+      setSubmitting(false);
+      return;
+    }
     
     if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+      showToast('Please enter your full name', 'error');
+      setSubmitting(false);
+      return;
     }
     
     if (userType === 'membership' && !formData.membershipNumber.trim()) {
-      newErrors.membershipNumber = 'Membership number is required';
+      showToast('Please enter your membership number', 'error');
+      setSubmitting(false);
+      return;
     }
     
     if (userType === 'licensed' && !formData.licenseNumber.trim()) {
-      newErrors.licenseNumber = 'License number is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
+      showToast('Please enter your license number', 'error');
+      setSubmitting(false);
       return;
     }
-
-    // Navigate to form page with existing user data
-    navigate('/form', {
-      state: {
-        existingUser: true,
-        userType,
-        userData: formData
+    
+    try {
+      // In a real application, you would validate the user details with your backend
+      // For now, we'll just navigate to the form page
+      const res = await fetch(`${API_BASE}/api/payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.fullName,
+          email: '', // Not collected in this form, but required by backend
+          phone: '', // Not collected in this form, but required by backend
+          plan: userType === 'membership' ? 'Membership Verification' : 'Licensed Verification',
+          amount: 0
+        }),
+      });
+      
+      if (!res.ok) throw new Error('Failed to verify user');
+      const result = await res.json();
+      
+      if (result.success) {
+        showToast('Verification successful! Redirecting to form...', 'success');
+        setTimeout(() => {
+          navigate('/form');
+        }, 1500);
+      } else {
+        throw new Error(result.error || 'Verification failed');
       }
-    });
+    } catch (err: any) {
+      showToast(err.message || 'Verification failed. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-100 to-blue-100 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-100 to-blue-100 dark:from-gray-800 dark:to-gray-900 py-12 px-4">
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.3 }} 
+        className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6"
       >
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
-              Welcome Back!
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Please select your user type and provide your details
-            </p>
-          </div>
-
-          {!userType ? (
-            // User Type Selection
-            <div className="space-y-4">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleUserTypeSelect('membership')}
-                className="w-full p-6 bg-gradient-to-r from-green-500 to-blue-500 rounded-xl text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-              >
-                <div className="text-center">
-                  <div className="text-2xl mb-2">👥</div>
-                  <div className="text-lg">Membership</div>
-                  <div className="text-sm opacity-90 mt-1">For existing members</div>
-                </div>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleUserTypeSelect('licensed')}
-                className="w-full p-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-              >
-                <div className="text-center">
-                  <div className="text-2xl mb-2">📜</div>
-                  <div className="text-lg">Licensed</div>
-                  <div className="text-sm opacity-90 mt-1">For licensed ministers</div>
-                </div>
-              </motion.button>
-            </div>
-          ) : (
-            // Form for selected user type
-            <motion.form 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onSubmit={handleSubmit}
-              className="space-y-6"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-                  {userType === 'membership' ? 'Membership Details' : 'License Details'}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setUserType(null)}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  Change Type
-                </button>
-              </div>
-
-              {/* Full Name Field */}
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Full Name *
-                </label>
+        <h1 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-white">
+          Existing User Verification
+        </h1>
+        
+        <p className="text-gray-600 dark:text-gray-300 mb-6 text-center">
+          Please select your user type and provide the required information
+        </p>
+        
+        <form onSubmit={handleSubmit}>
+          <div className="mb-6">
+            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-3">User Type *</label>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
                 <input
-                  type="text"
-                  id="fullName"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-lg border ${
-                    errors.fullName 
-                      ? 'border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:ring-blue-500'
-                  } focus:outline-none focus:ring-2 transition-colors`}
-                  placeholder="Enter your full name"
+                  type="radio"
+                  name="userType"
+                  checked={userType === 'membership'}
+                  onChange={() => setUserType('membership')}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
-                {errors.fullName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
-                )}
-              </div>
-
-              {/* Membership Number Field */}
-              {userType === 'membership' && (
-                <div>
-                  <label htmlFor="membershipNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Membership Number *
-                  </label>
-                  <input
-                    type="text"
-                    id="membershipNumber"
-                    name="membershipNumber"
-                    value={formData.membershipNumber}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-lg border ${
-                      errors.membershipNumber 
-                        ? 'border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:ring-blue-500'
-                    } focus:outline-none focus:ring-2 transition-colors`}
-                    placeholder="Enter your membership number"
-                  />
-                  {errors.membershipNumber && (
-                    <p className="mt-1 text-sm text-red-600">{errors.membershipNumber}</p>
-                  )}
-                </div>
-              )}
-
-              {/* License Number Field */}
-              {userType === 'licensed' && (
-                <div>
-                  <label htmlFor="licenseNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    IMF License Number *
-                  </label>
-                  <input
-                    type="text"
-                    id="licenseNumber"
-                    name="licenseNumber"
-                    value={formData.licenseNumber}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-lg border ${
-                      errors.licenseNumber 
-                        ? 'border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:ring-blue-500'
-                    } focus:outline-none focus:ring-2 transition-colors`}
-                    placeholder="Enter your IMF license number"
-                  />
-                  {errors.licenseNumber && (
-                    <p className="mt-1 text-sm text-red-600">{errors.licenseNumber}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl transition-all"
-              >
-                Continue to Form
-              </motion.button>
-            </motion.form>
+                <span className="ml-2 text-gray-700 dark:text-gray-300">Membership</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="userType"
+                  checked={userType === 'licensed'}
+                  onChange={() => setUserType('licensed')}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-700 dark:text-gray-300">Licensed</span>
+              </label>
+            </div>
+          </div>
+          
+          {userType === 'membership' && (
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2">Membership Number *</label>
+              <input
+                type="text"
+                name="membershipNumber"
+                value={formData.membershipNumber}
+                onChange={handleChange}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your membership number"
+              />
+            </div>
           )}
-        </div>
+          
+          {userType === 'licensed' && (
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2">IMF License Number *</label>
+              <input
+                type="text"
+                name="licenseNumber"
+                value={formData.licenseNumber}
+                onChange={handleChange}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your license number"
+              />
+            </div>
+          )}
+          
+          <div className="mb-6">
+            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2">Full Name *</label>
+            <input
+              type="text"
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleChange}
+              required
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter your full name"
+            />
+          </div>
+          
+          <motion.button
+            type="submit"
+            whileTap={{ scale: 0.98 }}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow transition-all"
+            disabled={submitting}
+          >
+            {submitting ? 'Verifying...' : 'Next'}
+          </motion.button>
+        </form>
       </motion.div>
     </div>
   );

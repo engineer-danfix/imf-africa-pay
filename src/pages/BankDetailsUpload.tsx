@@ -11,9 +11,9 @@ const BANK_DETAILS = {
   accountNumber: '1223664859',
 };
 
-// Helper to get backend URL - use relative path for same-origin requests
-// This works both in development and production regardless of the deployment URL
-const API_BASE = '';
+// Helper to get backend URL - use the backend URL when deployed separately
+// This allows the frontend to work with a separate backend deployment
+const API_BASE = import.meta.env.VITE_API_URL || 'https://imf-africa-pay-backend.onrender.com';
 
 const MAX_FILE_SIZE_MB = 5;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];

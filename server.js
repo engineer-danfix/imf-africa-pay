@@ -11,7 +11,7 @@ const app = express();
 
 // Enable CORS for all routes to handle cross-origin requests
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*', // Use specific frontend URL in production
+  origin: process.env.FRONTEND_URL || '*', // Allow specific frontend URL in production, fallback to all origins
   credentials: true
 }));
 app.use(express.json());
