@@ -57,29 +57,41 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // Email transporter setup with better error handling and TLS configuration for Render
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT || 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  // Add TLS configuration for better compatibility with Render
-  tls: {
-    rejectUnauthorized: false, // This helps with self-signed certificates on some platforms
-    ciphers: 'SSLv3'
-  }
-});
+let transporter;
+try {
+  transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT || 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    // Add TLS configuration for better compatibility with Render
+    tls: {
+      rejectUnauthorized: false, // This helps with self-signed certificates on some platforms
+      ciphers: 'SSLv3'
+    },
+    // Add connection timeout settings
+    connectionTimeout: 60000, // 60 seconds
+    greetingTimeout: 30000,   // 30 seconds
+    socketTimeout: 60000,     // 60 seconds
+  });
 
-// Verify transporter configuration
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('Email transporter configuration error:', error);
-  } else {
-    console.log('Email transporter is ready to send messages');
-  }
-});
+  // Verify transporter configuration
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('Email transporter configuration error:', error);
+      console.log('Email service is not available. Continuing without email functionality.');
+    } else {
+      console.log('Email transporter is ready to send messages');
+    }
+  });
+} catch (error) {
+  console.error('Failed to initialize email transporter:', error);
+  console.log('Email service is not available. Continuing without email functionality.');
+  transporter = null; // Set to null to handle gracefully
+}
 
 // Payment data storage (in production, use a database)
 let payments = [];
@@ -94,12 +106,13 @@ app.post('/api/payment', (req, res) => {
   const newPayment = { id: Date.now().toString(), name, email, phone, plan, amount, status: 'pending' };
   payments.push(newPayment);
   
-  // Send email notification to admin
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
-    to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
-    subject: 'New Payment Received',
-    text: `A new payment has been received:
+  // Send email notification to admin if transporter is available
+  if (transporter) {
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
+      to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
+      subject: 'New Payment Received',
+      text: `A new payment has been received:
 
 Name: ${name}
 Email: ${email}
@@ -107,15 +120,18 @@ Phone: ${phone}
 Plan: ${plan}
 Amount: ${amount}
 Status: pending`
-  };
+    };
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error('Email sending error:', error);
-    } else {
-      console.log('Email sent: ' + info.response);
-    }
-  });
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Email sending error:', error);
+      } else {
+        console.log('Email sent: ' + info.response);
+      }
+    });
+  } else {
+    console.log('Email transporter not available, skipping email notification');
+  }
 
   res.json({ success: true, payment: newPayment });
 });
@@ -137,17 +153,18 @@ app.post('/api/upload', upload.single('receipt'), (req, res) => {
     emailStatus: 'processing' // Indicate that email is being processed in background
   });
 
-  // Process emails in the background without blocking the response
-  setTimeout(() => {
-    // Log email attempt for debugging
-    console.log(`Attempting to send emails for: ${name || 'Unknown'} (${email || 'No email'})`);
-    
-    // Send email notification to admin about the uploaded receipt
-    const adminMailOptions = {
-      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
-      to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
-      subject: 'Payment Receipt Uploaded',
-      text: `A payment receipt has been uploaded:
+  // Process emails in the background only if transporter is available
+  if (transporter) {
+    setTimeout(() => {
+      // Log email attempt for debugging
+      console.log(`Attempting to send emails for: ${name || 'Unknown'} (${email || 'No email'})`);
+      
+      // Send email notification to admin about the uploaded receipt
+      const adminMailOptions = {
+        from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
+        to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
+        subject: 'Payment Receipt Uploaded',
+        text: `A payment receipt has been uploaded:
 
 File: ${req.file.filename}
 Original Name: ${req.file.originalname}
@@ -156,97 +173,100 @@ Uploaded by: ${name || 'Unknown'}
 Email: ${email || 'N/A'}
 Amount: ${amount || 'N/A'}
 Service: ${serviceType || 'N/A'}`,
-      attachments: [
-        {
-          filename: req.file.originalname,
-          path: req.file.path
-        }
-      ]
-    };
+        attachments: [
+          {
+            filename: req.file.originalname,
+            path: req.file.path
+          }
+        ]
+      };
 
-    // Compose receipt email to user
-    const userReceiptMailOptions = {
-      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Payment Receipt Confirmation - IMF Africa Pay',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-            .content { background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; }
-            .receipt-details { background-color: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>IMF Africa Pay</h1>
-              <h2>Payment Receipt Confirmation</h2>
-            </div>
-            <div class="content">
-              <p>Dear ${name || 'Valued Customer'},</p>
-              
-              <p>We have successfully received your payment receipt. Here are the details:</p>
-              
-              <div class="receipt-details">
-                <h3>Payment Information:</h3>
-                <p><strong>Name:</strong> ${name || 'N/A'}</p>
-                <p><strong>Email:</strong> ${email || 'N/A'}</p>
-                <p><strong>Amount:</strong> ₦${amount ? parseInt(amount).toLocaleString() : 'N/A'}</p>
-                <p><strong>Service Type:</strong> ${serviceType || 'N/A'}</p>
-                <p><strong>Receipt File:</strong> ${req.file.originalname}</p>
-                <p><strong>Upload Time:</strong> ${new Date().toLocaleString()}</p>
+      // Compose receipt email to user
+      const userReceiptMailOptions = {
+        from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Payment Receipt Confirmation - IMF Africa Pay',
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+              .content { background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; }
+              .receipt-details { background-color: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
+              .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>IMF Africa Pay</h1>
+                <h2>Payment Receipt Confirmation</h2>
               </div>
-              
-              <p>Your payment is currently being processed. You will receive another email once your payment has been verified and your service activated.</p>
-              
-              <p>If you have any questions, please contact our support team.</p>
-              
-              <p>Thank you for choosing IMF Africa Pay!</p>
-              
-              <p>Best regards,<br/>The IMF Africa Pay Team</p>
+              <div class="content">
+                <p>Dear ${name || 'Valued Customer'},</p>
+                
+                <p>We have successfully received your payment receipt. Here are the details:</p>
+                
+                <div class="receipt-details">
+                  <h3>Payment Information:</h3>
+                  <p><strong>Name:</strong> ${name || 'N/A'}</p>
+                  <p><strong>Email:</strong> ${email || 'N/A'}</p>
+                  <p><strong>Amount:</strong> ₦${amount ? parseInt(amount).toLocaleString() : 'N/A'}</p>
+                  <p><strong>Service Type:</strong> ${serviceType || 'N/A'}</p>
+                  <p><strong>Receipt File:</strong> ${req.file.originalname}</p>
+                  <p><strong>Upload Time:</strong> ${new Date().toLocaleString()}</p>
+                </div>
+                
+                <p>Your payment is currently being processed. You will receive another email once your payment has been verified and your service activated.</p>
+                
+                <p>If you have any questions, please contact our support team.</p>
+                
+                <p>Thank you for choosing IMF Africa Pay!</p>
+                
+                <p>Best regards,<br/>The IMF Africa Pay Team</p>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} International Ministers Forum. All rights reserved.</p>
+                <p>This is an automated message, please do not reply directly to this email.</p>
+              </div>
             </div>
-            <div class="footer">
-              <p>© ${new Date().getFullYear()} International Ministers Forum. All rights reserved.</p>
-              <p>This is an automated message, please do not reply directly to this email.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-      attachments: [
-        {
-          filename: req.file.originalname,
-          path: req.file.path
-        }
-      ]
-    };
+          </body>
+          </html>
+        `,
+        attachments: [
+          {
+            filename: req.file.originalname,
+            path: req.file.path
+          }
+        ]
+      };
 
-    // Send emails concurrently in the background
-    Promise.all([
-      // Send notification to admin
-      transporter.sendMail(adminMailOptions)
-        .then(info => {
-          console.log('Admin email sent successfully:', info.response);
-        })
-        .catch(error => {
-          console.error('Admin email failed:', error);
-        }),
-      // Send receipt confirmation to user
-      transporter.sendMail(userReceiptMailOptions)
-        .then(info => {
-          console.log('User receipt email sent successfully:', info.response);
-        })
-        .catch(error => {
-          console.error('User receipt email failed:', error);
-        })
-    ]);
-  }, 100); // Small delay to ensure response is sent first
+      // Send emails concurrently in the background
+      Promise.all([
+        // Send notification to admin
+        transporter.sendMail(adminMailOptions)
+          .then(info => {
+            console.log('Admin email sent successfully:', info.response);
+          })
+          .catch(error => {
+            console.error('Admin email failed:', error);
+          }),
+        // Send receipt confirmation to user
+        transporter.sendMail(userReceiptMailOptions)
+          .then(info => {
+            console.log('User receipt email sent successfully:', info.response);
+          })
+          .catch(error => {
+            console.error('User receipt email failed:', error);
+          })
+      ]);
+    }, 100); // Small delay to ensure response is sent first
+  } else {
+    console.log('Email transporter not available, skipping email notifications');
+  }
 });
 
 // Health check endpoint
