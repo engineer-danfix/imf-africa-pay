@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -10,172 +12,178 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://imf-africa-pay-backend
 const ExistingUserForm: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [userType, setUserType] = useState<'membership' | 'licensed' | null>(null);
-  const [formData, setFormData] = useState({
-    membershipNumber: '',
-    licenseNumber: '',
-    fullName: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  const [selectedOption, setSelectedOption] = useState<'membership' | 'licensed' | null>(null);
+  const [identifier, setIdentifier] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    
-    // Validation
-    if (!userType) {
-      showToast('Please select a user type', 'error');
-      setSubmitting(false);
+    setError(null);
+
+    if (!selectedOption) {
+      setError('Please select an option');
+      showToast('Please select an option', 'error');
       return;
     }
-    
-    if (!formData.fullName.trim()) {
-      showToast('Please enter your full name', 'error');
-      setSubmitting(false);
+
+    if (!identifier.trim() || !fullName.trim()) {
+      setError('Please enter both identifier and full name');
+      showToast('Please enter both identifier and full name', 'error');
       return;
     }
-    
-    if (userType === 'membership' && !formData.membershipNumber.trim()) {
-      showToast('Please enter your membership number', 'error');
-      setSubmitting(false);
-      return;
-    }
-    
-    if (userType === 'licensed' && !formData.licenseNumber.trim()) {
-      showToast('Please enter your license number', 'error');
-      setSubmitting(false);
-      return;
-    }
-    
+
+    setLoading(true);
     try {
-      // In a real application, you would validate the user details with your backend
+      // In a real implementation, you would verify the user details here
       // For now, we'll just navigate to the form page
+      
+      // Prepare data for the next step
+      const userData = {
+        selectedOption,
+        identifier,
+        fullName,
+        existingUser: true
+      };
+
+      // Submit the existing user data to the backend
       const res = await fetch(`${API_BASE}/api/payment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          name: formData.fullName,
-          email: '', // Not collected in this form, but required by backend
-          phone: '', // Not collected in this form, but required by backend
-          plan: userType === 'membership' ? 'Membership Verification' : 'Licensed Verification',
-          amount: 0
+          name: fullName,
+          email: '', // Will be filled in next step
+          phone: '', // Will be filled in next step
+          plan: `${selectedOption.charAt(0).toUpperCase() + selectedOption.slice(1)} Renewal`,
+          amount: 0 // Amount will be determined by the plan selection later
         }),
       });
-      
-      if (!res.ok) throw new Error('Failed to verify user');
-      const result = await res.json();
-      
-      if (result.success) {
-        showToast('Verification successful! Redirecting to form...', 'success');
-        setTimeout(() => {
-          navigate('/form');
-        }, 1500);
-      } else {
-        throw new Error(result.error || 'Verification failed');
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
+
+      const result = await res.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to submit user details');
+      }
+
+      showToast('User details verified successfully!', 'success');
+      navigate('/plan-selection', { state: { userData } });
     } catch (err: any) {
-      showToast(err.message || 'Verification failed. Please try again.', 'error');
+      setError(err.message || 'Failed to submit user details. Please try again.');
+      showToast(err.message || 'Failed to submit user details. Please try again.', 'error');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-100 to-blue-100 dark:from-gray-800 dark:to-gray-900 py-12 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 to-green-100 dark:from-gray-800 dark:to-gray-900 py-12 px-4">
       <motion.div 
         initial={{ opacity: 0, y: 20 }} 
         animate={{ opacity: 1, y: 0 }} 
         transition={{ duration: 0.3 }} 
-        className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-lg"
       >
-        <h1 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-white">
-          Existing User Verification
-        </h1>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold mb-2 text-blue-700 dark:text-blue-400">Existing User</h1>
+          <p className="text-gray-600 dark:text-gray-300 text-sm">
+            Please select your user type and provide the required information.
+          </p>
+        </div>
         
-        <p className="text-gray-600 dark:text-gray-300 mb-6 text-center">
-          Please select your user type and provide the required information
-        </p>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-3">User Type *</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col space-y-3">
+            <label className="text-gray-700 dark:text-gray-300 font-semibold text-sm">Select User Type:</label>
+            
             <div className="flex space-x-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="userType"
-                  checked={userType === 'membership'}
-                  onChange={() => setUserType('membership')}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-gray-700 dark:text-gray-300">Membership</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="userType"
-                  checked={userType === 'licensed'}
-                  onChange={() => setUserType('licensed')}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-gray-700 dark:text-gray-300">Licensed</span>
-              </label>
+              <button
+                type="button"
+                onClick={() => setSelectedOption('membership')}
+                className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${
+                  selectedOption === 'membership'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                Membership
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setSelectedOption('licensed')}
+                className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${
+                  selectedOption === 'licensed'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                Licensed
+              </button>
             </div>
           </div>
           
-          {userType === 'membership' && (
-            <div className="mb-4">
-              <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2">Membership Number *</label>
+          {selectedOption && (
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">
+                {selectedOption === 'membership' ? 'Membership Number:' : 'IMF License Number:'}
+              </label>
               <input
                 type="text"
-                name="membershipNumber"
-                value={formData.membershipNumber}
-                onChange={handleChange}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your membership number"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                placeholder={
+                  selectedOption === 'membership' 
+                    ? 'Enter your membership number' 
+                    : 'Enter your IMF license number'
+                }
+                disabled={loading}
+                required
               />
             </div>
           )}
           
-          {userType === 'licensed' && (
-            <div className="mb-4">
-              <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2">IMF License Number *</label>
+          {selectedOption && (
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">
+                Full Name:
+              </label>
               <input
                 type="text"
-                name="licenseNumber"
-                value={formData.licenseNumber}
-                onChange={handleChange}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your license number"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                placeholder="Enter your full name"
+                disabled={loading}
+                required
               />
             </div>
           )}
           
-          <div className="mb-6">
-            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2">Full Name *</label>
-            <input
-              type="text"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleChange}
-              required
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your full name"
-            />
-          </div>
+          {error && <div className="text-red-600 dark:text-red-400 text-xs bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg">{error}</div>}
           
           <motion.button
             type="submit"
             whileTap={{ scale: 0.98 }}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow transition-all"
-            disabled={submitting}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition-all mt-4 flex items-center justify-center disabled:opacity-70 text-sm"
+            disabled={loading || !selectedOption}
           >
-            {submitting ? 'Verifying...' : 'Next'}
+            {loading ? (
+              <>
+                <svg className="animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                </svg>
+                Processing...
+              </>
+            ) : (
+              'Next'
+            )}
           </motion.button>
         </form>
       </motion.div>

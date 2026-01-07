@@ -11,7 +11,12 @@ const app = express();
 
 // Enable CORS for all routes to handle cross-origin requests
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://imf-africa-pay-v4zb.onrender.com', // Allow specific frontend URL in production
+  origin: process.env.FRONTEND_URL || [
+    'https://imf-africa-pay-klzv.onrender.com', // Your frontend domain
+    'https://imf-africa-pay-v4zb.onrender.com', // Alternative frontend domain
+    'http://localhost:5173', // Local development
+    'http://localhost:3000'  // Alternative local development
+  ],
   credentials: true
 }));
 app.use(express.json());
