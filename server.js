@@ -56,9 +56,38 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Email transporter setup - only initialize if all required environment variables are present
+// Email transporter setup - use SendGrid if API key is provided, otherwise SMTP
 let transporter = null;
-if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+
+if (process.env.SENDGRID_API_KEY) {
+  // Use SendGrid
+  const sgMail = require('@sendgrid/mail');
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  
+  // Create a send function that uses SendGrid
+  transporter = {
+    sendMail: async (mailOptions) => {
+      const msg = {
+        to: mailOptions.to,
+        from: mailOptions.from || process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_USER,
+        subject: mailOptions.subject,
+        text: mailOptions.text,
+        html: mailOptions.html,
+        attachments: mailOptions.attachments ? mailOptions.attachments.map(att => ({
+          content: fs.readFileSync(att.path).toString('base64'),
+          filename: att.filename,
+          type: att.contentType || att.mimetype,
+          disposition: 'attachment'
+        })) : undefined
+      };
+      
+      return await sgMail.send(msg);
+    }
+  };
+  
+  console.log('Email transporter configured with SendGrid');
+} else if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  // Use SMTP
   try {
     transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
