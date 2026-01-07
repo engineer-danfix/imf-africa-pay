@@ -95,8 +95,10 @@ const BankDetailsUpload: React.FC = () => {
         throw new Error(result.error || 'Failed to submit payment');
       }
       
-      // Show appropriate success message based on email status
-      if (result.emailStatus === 'sent') {
+      // Show success message - email will be sent in background
+      if (result.emailStatus === 'processing') {
+        showToast('Payment submitted successfully! Email notifications are being sent in the background.', 'success');
+      } else if (result.emailStatus === 'sent') {
         showToast('Payment submitted successfully and receipt confirmation email sent!', 'success');
       } else if (result.emailStatus === 'failed') {
         showToast(`Payment submitted successfully but email notification failed: ${result.message}`, 'error');
