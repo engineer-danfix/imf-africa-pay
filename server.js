@@ -10,16 +10,30 @@ require('dotenv').config();
 const app = express();
 
 // Enable CORS for all routes to handle cross-origin requests
-app.use(cors({
-  origin: process.env.FRONTEND_URL || [
-    'https://imf-africa-pay-klzv.onrender.com', // Your frontend domain
-    'https://imf-africa-pay-v4zb.onrender.com', // Alternative frontend domain
-    'https://imf-africa-pay-backend.onrender.com', // Backend domain (for testing)
-    'http://localhost:5173', // Local development
-    'http://localhost:3000'  // Alternative local development
-  ],
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://imf-africa-pay-klzv.onrender.com',
+      'https://imf-africa-pay-v4zb.onrender.com',
+      'https://imf-africa-pay-backend.onrender.com',
+      'http://localhost:5173',
+      'http://localhost:3000'
+    ];
+    
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.indexOf(origin) !== -1 || 
+        (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
-}));
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
