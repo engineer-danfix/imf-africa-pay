@@ -56,15 +56,29 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Email transporter setup
+// Email transporter setup with better error handling and TLS configuration for Render
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: process.env.EMAIL_PORT || 587,
   secure: false, // true for 465, false for other ports
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  // Add TLS configuration for better compatibility with Render
+  tls: {
+    rejectUnauthorized: false, // This helps with self-signed certificates on some platforms
+    ciphers: 'SSLv3'
+  }
+});
+
+// Verify transporter configuration
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('Email transporter configuration error:', error);
+  } else {
+    console.log('Email transporter is ready to send messages');
+  }
 });
 
 // Payment data storage (in production, use a database)
@@ -82,8 +96,8 @@ app.post('/api/payment', (req, res) => {
   
   // Send email notification to admin
   const mailOptions = {
-    from: process.env.EMAIL_FROM,
-    to: process.env.IMF_EMAIL,
+    from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
+    to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
     subject: 'New Payment Received',
     text: `A new payment has been received:
 
@@ -125,10 +139,13 @@ app.post('/api/upload', upload.single('receipt'), (req, res) => {
 
   // Process emails in the background without blocking the response
   setTimeout(() => {
+    // Log email attempt for debugging
+    console.log(`Attempting to send emails for: ${name || 'Unknown'} (${email || 'No email'})`);
+    
     // Send email notification to admin about the uploaded receipt
     const adminMailOptions = {
-      from: process.env.EMAIL_FROM,
-      to: process.env.IMF_EMAIL,
+      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
+      to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
       subject: 'Payment Receipt Uploaded',
       text: `A payment receipt has been uploaded:
 
@@ -149,7 +166,7 @@ Service: ${serviceType || 'N/A'}`,
 
     // Compose receipt email to user
     const userReceiptMailOptions = {
-      from: process.env.EMAIL_FROM,
+      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Payment Receipt Confirmation - IMF Africa Pay',
       html: `
@@ -213,17 +230,22 @@ Service: ${serviceType || 'N/A'}`,
     // Send emails concurrently in the background
     Promise.all([
       // Send notification to admin
-      transporter.sendMail(adminMailOptions),
+      transporter.sendMail(adminMailOptions)
+        .then(info => {
+          console.log('Admin email sent successfully:', info.response);
+        })
+        .catch(error => {
+          console.error('Admin email failed:', error);
+        }),
       // Send receipt confirmation to user
       transporter.sendMail(userReceiptMailOptions)
-    ])
-    .then(([adminResult, userResult]) => {
-      console.log('Admin email sent: ' + adminResult.response);
-      console.log('User receipt email sent: ' + userResult.response);
-    })
-    .catch(error => {
-      console.error('Background email sending error:', error);
-    });
+        .then(info => {
+          console.log('User receipt email sent successfully:', info.response);
+        })
+        .catch(error => {
+          console.error('User receipt email failed:', error);
+        })
+    ]);
   }, 100); // Small delay to ensure response is sent first
 });
 
