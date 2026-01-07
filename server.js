@@ -14,6 +14,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || [
     'https://imf-africa-pay-klzv.onrender.com', // Your frontend domain
     'https://imf-africa-pay-v4zb.onrender.com', // Alternative frontend domain
+    'https://imf-africa-pay-backend.onrender.com', // Backend domain (for testing)
     'http://localhost:5173', // Local development
     'http://localhost:3000'  // Alternative local development
   ],
