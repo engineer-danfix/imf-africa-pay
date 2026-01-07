@@ -74,6 +74,7 @@ const BankDetailsUpload: React.FC = () => {
       formData.append('receipt', file);
       formData.append('name', name);
       formData.append('email', email);
+      // Pass the original Naira amount instead of USD
       formData.append('amount', (plan?.amount || 0).toString());
       formData.append('serviceType', plan?.name || '');
       formData.append('reference', `IMF-${Date.now()}`);

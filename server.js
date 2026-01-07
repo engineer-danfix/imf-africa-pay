@@ -167,7 +167,7 @@ Service: ${serviceType || 'N/A'}`,
               <h3>Payment Information:</h3>
               <p><strong>Name:</strong> ${name || 'N/A'}</p>
               <p><strong>Email:</strong> ${email || 'N/A'}</p>
-              <p><strong>Amount:</strong> ${amount ? `$${amount}` : 'N/A'}</p>
+              <p><strong>Amount:</strong> ₦${amount ? parseInt(amount).toLocaleString() : 'N/A'}</p>
               <p><strong>Service Type:</strong> ${serviceType || 'N/A'}</p>
               <p><strong>Receipt File:</strong> ${req.file.originalname}</p>
               <p><strong>Upload Time:</strong> ${new Date().toLocaleString()}</p>

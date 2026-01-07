@@ -3,50 +3,55 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 
-// Updated pricing: Removed the additional ₦25,000 (~$17) from each plan
+// Updated pricing: Using original Naira amounts as main prices with USD conversions
 // Using $1 = ₦1500 exchange rate (this is an approximation - actual rates fluctuate)
 const plans = [
   {
     name: 'Membership Only',
-    // Original: ₦75,000 -> ₦50,000 (removed ₦25,000) -> ~$33
-    price: '$33',
-    amount: 33,
+    // Original: ₦75,000 -> ~$50
+    price: '₦75,000',
+    usdPrice: '$50',
+    amount: 75000,
     description: 'Entry-level licensing for new ministers.',
     features: ['Administrative Fee', 'Membership Fee'],
     color: 'from-blue-500 to-blue-700',
   },
   {
     name: 'Renewal Only',
-    // Original: ₦75,000 -> ₦50,000 (removed ₦25,000) -> ~$33
-    price: '$33',
-    amount: 33,
+    // Original: ₦75,000 -> ~$50
+    price: '₦75,000',
+    usdPrice: '$50',
+    amount: 75000,
     description: 'Renewal for existing ministers.',
     features: ['Administrative Fee', 'Renewal Fee'],
     color: 'from-blue-600 to-blue-800',
   },
   {
     name: 'Membership and Licensing',
-    // Original: ₦125,000 -> ₦100,000 (removed ₦25,000) -> ~$67
-    price: '$67',
-    amount: 67,
+    // Original: ₦125,000 -> ~$83
+    price: '₦125,000',
+    usdPrice: '$83',
+    amount: 125000,
     description: 'Full membership with licensing credentials.',
     features: ['Administrative Fee', 'Licensing Fee', 'Membership Fee'],
     color: 'from-blue-700 to-blue-900',
   },
   {
     name: 'Membership, Licensing and Ordination',
-    // Original: ₦175,000 -> ₦150,000 (removed ₦25,000) -> ~$100
-    price: '$100',
-    amount: 100,
+    // Original: ₦175,000 -> ~$117
+    price: '₦175,000',
+    usdPrice: '$117',
+    amount: 175000,
     description: 'Complete credentials package for senior ministers.',
     features: ['Administrative Fee', 'Licensing Fee', 'Membership Fee', 'Ordination Fee'],
     color: 'from-blue-800 to-blue-950',
   },
   {
     name: 'Membership and Ordination',
-    // Original: ₦125,000 -> ₦100,000 (removed ₦25,000) -> ~$67
-    price: '$67',
-    amount: 67,
+    // Original: ₦125,000 -> ~$83
+    price: '₦125,000',
+    usdPrice: '$83',
+    amount: 125000,
     description: 'Advanced credentials for experienced ministers.',
     features: ['Administrative Fee', 'Membership Fee', 'Ordination Fee'],
     color: 'from-blue-900 to-blue-950',
@@ -114,7 +119,8 @@ const PlanSelection: React.FC = () => {
           >
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 flex flex-col h-full">
               <h2 className="text-xl font-bold mb-2 text-gray-800 dark:text-white">{plan.name}</h2>
-              <div className="text-2xl font-extrabold mb-2 text-blue-700 dark:text-blue-400">{plan.price}</div>
+              <div className="text-2xl font-extrabold mb-1 text-blue-700 dark:text-blue-400">{plan.price}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">(~{plan.usdPrice})</div>
               
               {/* Currency Converter for this card */}
               <div className="mb-4">
@@ -129,17 +135,17 @@ const PlanSelection: React.FC = () => {
                       // In a real implementation, we would fetch exchange rates here
                       // For now, we'll use placeholder values
                       const rates: Record<string, number> = {
-                        'NGN': 1500,
-                        'GHS': 14.5,
-                        'KES': 130,
-                        'ZAR': 18.5,
-                        'UGX': 3700,
-                        'TZS': 2500,
-                        'GBP': 0.8,
-                        'EUR': 0.92,
-                        'CAD': 1.35,
-                        'AUD': 1.5,
-                        'USD': 1
+                        'NGN': 1,
+                        'GHS': 0.0097,
+                        'KES': 0.0077,
+                        'ZAR': 0.054,
+                        'UGX': 0.00025,
+                        'TZS': 0.0004,
+                        'GBP': 0.00063,
+                        'EUR': 0.00074,
+                        'CAD': 0.00089,
+                        'AUD': 0.00067,
+                        'USD': 0.00067
                       };
                       
                       const rate = rates[currencyCode] || 1;
@@ -172,8 +178,8 @@ const PlanSelection: React.FC = () => {
                   }}
                 >
                   <option value="">Select Currency</option>
-                  <option value="USD">USD ($)</option>
                   <option value="NGN">Nigerian Naira (₦)</option>
+                  <option value="USD">USD ($)</option>
                   <option value="GHS">Ghanaian Cedi (GH₵)</option>
                   <option value="KES">Kenyan Shilling (KSh)</option>
                   <option value="ZAR">South African Rand (R)</option>
