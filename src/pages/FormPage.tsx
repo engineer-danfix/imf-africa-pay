@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useToast } from '../components/ToastProvider';
 
@@ -19,13 +19,15 @@ interface FormData {
 
 const FormPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
+  const plan = location.state?.plan; // Get plan from previous page
   const [formData, setFormData] = React.useState<FormData>({
     name: '',
     email: '',
     phone: '',
-    plan: '',
-    amount: 0
+    plan: plan?.name || '', // Pre-fill plan if available
+    amount: plan?.amount || 0 // Pre-fill amount if available
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +78,8 @@ const FormPage: React.FC = () => {
       }
 
       showToast('Payment details submitted successfully!', 'success');
-      navigate('/bank-transfer', { state: { plan: { name: formData.plan, price: `$${formData.amount}`, amount: formData.amount } } });
+      // Navigate to final thank you page using existing route
+      navigate('/thank-you', { state: { plan: formData.plan } });
     } catch (err: any) {
       setError(err.message || 'Failed to submit payment. Please try again.');
       showToast(err.message || 'Failed to submit payment. Please try again.', 'error');
@@ -94,9 +97,9 @@ const FormPage: React.FC = () => {
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-lg"
       >
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2 text-blue-700 dark:text-blue-400">Complete Payment Details</h1>
+          <h1 className="text-2xl font-bold mb-2 text-blue-700 dark:text-blue-400">Complete Your Information</h1>
           <p className="text-gray-600 dark:text-gray-300 text-sm">
-            Please fill in your details to proceed with the payment.
+            Please fill in your details to complete your application.
           </p>
         </div>
         
@@ -144,7 +147,7 @@ const FormPage: React.FC = () => {
           </div>
           
           <div>
-            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">Select Plan:</label>
+            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">Plan:</label>
             <select
               name="plan"
               value={formData.plan}
@@ -193,7 +196,7 @@ const FormPage: React.FC = () => {
                 Processing...
               </>
             ) : (
-              'Submit Details'
+              'Complete Application'
             )}
           </motion.button>
         </form>

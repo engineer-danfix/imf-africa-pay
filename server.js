@@ -251,7 +251,7 @@ Service: ${serviceType || 'N/A'}`,
           ]
         };
 
-        // Compose receipt email to user
+        // Compose receipt email to user with improved UI
         const userReceiptMailOptions = {
           from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER || 'noreply@imfafricapay.org'}>`,
           to: email,
@@ -260,49 +260,112 @@ Service: ${serviceType || 'N/A'}`,
             <!DOCTYPE html>
             <html>
             <head>
-              <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-                .content { background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; }
-                .receipt-details { background-color: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
-                .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-              </style>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Payment Receipt Confirmation - IMF Africa Pay</title>
             </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <h1>IMF Africa Pay</h1>
-                  <h2>Payment Receipt Confirmation</h2>
-                </div>
-                <div class="content">
-                  <p>Dear ${name || 'Valued Customer'},</p>
-                  
-                  <p>We have successfully received your payment receipt. Here are the details:</p>
-                  
-                  <div class="receipt-details">
-                    <h3>Payment Information:</h3>
-                    <p><strong>Name:</strong> ${name || 'N/A'}</p>
-                    <p><strong>Email:</strong> ${email || 'N/A'}</p>
-                    <p><strong>Amount:</strong> ₦${amount ? parseInt(amount).toLocaleString() : 'N/A'}</p>
-                    <p><strong>Service Type:</strong> ${serviceType || 'N/A'}</p>
-                    <p><strong>Receipt File:</strong> ${req.file.originalname}</p>
-                    <p><strong>Upload Time:</strong> ${new Date().toLocaleString()}</p>
-                  </div>
-                  
-                  <p>Your payment is currently being processed. You will receive another email once your payment has been verified and your service activated.</p>
-                  
-                  <p>If you have any questions, please contact our support team.</p>
-                  
-                  <p>Thank you for choosing IMF Africa Pay!</p>
-                  
-                  <p>Best regards,<br/>The IMF Africa Pay Team</p>
-                </div>
-                <div class="footer">
-                  <p>© ${new Date().getFullYear()} International Ministers Forum. All rights reserved.</p>
-                  <p>This is an automated message, please do not reply directly to this email.</p>
-                </div>
-              </div>
+            <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+                <tr>
+                  <td style="padding: 20px 0;">
+                    <!-- Main Email Container -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                      <!-- Header Section -->
+                      <tr>
+                        <td style="text-align: center; padding: 30px 20px; background-color: #1e40af; border-radius: 8px 8px 0 0;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 28px;">IMF Africa Pay</h1>
+                          <h2 style="color: #dbeafe; margin: 10px 0 0 0; font-size: 20px; font-weight: normal;">Payment Receipt Confirmation</h2>
+                        </td>
+                      </tr>
+                      
+                      <!-- Content Section -->
+                      <tr>
+                        <td style="padding: 40px 30px;">
+                          <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                            Dear ${name || 'Valued Customer'},
+                          </p>
+                          
+                          <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                            We have successfully received your payment receipt. Here are the details:
+                          </p>
+                          
+                          <!-- Receipt Details Card -->
+                          <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 25px; margin: 25px 0;">
+                            <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 18px;">Payment Information:</h3>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                              <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                  <strong style="color: #374151; width: 150px; display: inline-block;">Name:</strong>
+                                  <span style="color: #6b7280;">${name || 'N/A'}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                  <strong style="color: #374151; width: 150px; display: inline-block;">Email:</strong>
+                                  <span style="color: #6b7280;">${email || 'N/A'}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                  <strong style="color: #374151; width: 150px; display: inline-block;">Amount:</strong>
+                                  <span style="color: #6b7280;">₦${amount ? parseInt(amount).toLocaleString() : 'N/A'}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                  <strong style="color: #374151; width: 150px; display: inline-block;">Service Type:</strong>
+                                  <span style="color: #6b7280;">${serviceType || 'N/A'}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                  <strong style="color: #374151; width: 150px; display: inline-block;">Receipt File:</strong>
+                                  <span style="color: #6b7280;">${req.file.originalname}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 8px 0;">
+                                  <strong style="color: #374151; width: 150px; display: inline-block;">Upload Time:</strong>
+                                  <span style="color: #6b7280;">${new Date().toLocaleString()}</span>
+                                </td>
+                              </tr>
+                            </table>
+                          </div>
+                          
+                          <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                            Your payment is currently being processed. You will receive another email once your payment has been verified and your service activated.
+                          </p>
+                          
+                          <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                            If you have any questions, please contact our support team.
+                          </p>
+                          
+                          <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                            Thank you for choosing IMF Africa Pay!
+                          </p>
+                          
+                          <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0;">
+                            Best regards,<br/>
+                            <strong>The IMF Africa Pay Team</strong>
+                          </p>
+                        </td>
+                      </tr>
+                      
+                      <!-- Footer Section -->
+                      <tr>
+                        <td style="text-align: center; padding: 30px 20px; background-color: #f3f4f6; border-radius: 0 0 8px 8px;">
+                          <p style="color: #6b7280; font-size: 12px; margin: 0 0 10px 0;">
+                            © ${new Date().getFullYear()} International Ministers Forum. All rights reserved.
+                          </p>
+                          <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+                            This is an automated message, please do not reply directly to this email.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
             </body>
             </html>
           `,

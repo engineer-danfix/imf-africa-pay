@@ -106,7 +106,8 @@ const BankDetailsUpload: React.FC = () => {
         showToast('Payment submitted successfully!', 'success');
       }
       
-      navigate('/success', { state: { plan } });
+      // Navigate to form page instead of success page
+      navigate('/form', { state: { plan } });
     } catch (err: any) {
       setError(err.message || 'Failed to upload receipt. Please try again.');
       showToast(err.message || 'Failed to upload receipt. Please try again.', 'error');
