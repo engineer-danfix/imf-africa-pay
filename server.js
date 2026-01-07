@@ -63,15 +63,21 @@ if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER &
     transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT),
-      secure: process.env.EMAIL_PORT === '465', // Use secure connection for port 465
+      secure: parseInt(process.env.EMAIL_PORT) === 465, // Use secure connection for port 465
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
       // Add timeout settings to prevent hanging
-      connectionTimeout: 30000, // 30 seconds
-      greetingTimeout: 10000,   // 10 seconds
-      socketTimeout: 30000,     // 30 seconds
+      connectionTimeout: 15000, // 15 seconds
+      greetingTimeout: 5000,    // 5 seconds
+      socketTimeout: 15000,     // 15 seconds
+      // Add additional options for better compatibility with cloud platforms
+      requireTLS: true,
+      tls: {
+        rejectUnauthorized: false, // This helps with self-signed certificates on some platforms
+        ciphers: 'SSLv3'
+      }
     });
 
     // Verify transporter configuration but don't let it block startup
@@ -297,7 +303,7 @@ app.get('*', (req, res) => {
   res.json({ message: 'Server is running', status: 'ok' });
 });
 
-// Use the PORT environment variable provided by Render or default to 5000
+// Use the PORT environment variable provided by DigitalOcean or default to 5000
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
