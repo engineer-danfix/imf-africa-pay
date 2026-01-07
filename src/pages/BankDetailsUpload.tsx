@@ -78,7 +78,7 @@ const BankDetailsUpload: React.FC = () => {
       formData.append('serviceType', plan?.name || '');
       formData.append('reference', `IMF-${Date.now()}`);
       
-      const res = await fetch(`${API_BASE}/api/send-transfer-receipt`, {
+      const res = await fetch(`${API_BASE}/api/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -90,10 +90,10 @@ const BankDetailsUpload: React.FC = () => {
       }
       
       // Show appropriate success message based on email status
-      if (result.emailSuccess) {
-        showToast('Payment submitted successfully and confirmation email sent!', 'success');
-      } else if (result.emailError) {
-        showToast(`Payment submitted successfully but email notification failed: ${result.emailError}`, 'error');
+      if (result.emailStatus === 'sent') {
+        showToast('Payment submitted successfully and receipt confirmation email sent!', 'success');
+      } else if (result.emailStatus === 'failed') {
+        showToast(`Payment submitted successfully but email notification failed: ${result.message}`, 'error');
       } else {
         showToast('Payment submitted successfully!', 'success');
       }
