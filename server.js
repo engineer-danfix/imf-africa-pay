@@ -56,41 +56,43 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Email transporter setup with better error handling and TLS configuration for Render
-let transporter;
-try {
-  transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: process.env.EMAIL_PORT || 587,
-    secure: false, // true for 465, false for other ports
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    // Add TLS configuration for better compatibility with Render
-    tls: {
-      rejectUnauthorized: false, // This helps with self-signed certificates on some platforms
-      ciphers: 'SSLv3'
-    },
-    // Add connection timeout settings
-    connectionTimeout: 60000, // 60 seconds
-    greetingTimeout: 30000,   // 30 seconds
-    socketTimeout: 60000,     // 60 seconds
-  });
+// Email transporter setup - only initialize if all required environment variables are present
+let transporter = null;
+if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  try {
+    transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: parseInt(process.env.EMAIL_PORT),
+      secure: process.env.EMAIL_PORT === '465', // Use secure connection for port 465
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      // Add timeout settings to prevent hanging
+      connectionTimeout: 30000, // 30 seconds
+      greetingTimeout: 10000,   // 10 seconds
+      socketTimeout: 30000,     // 30 seconds
+    });
 
-  // Verify transporter configuration
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('Email transporter configuration error:', error);
-      console.log('Email service is not available. Continuing without email functionality.');
-    } else {
-      console.log('Email transporter is ready to send messages');
-    }
-  });
-} catch (error) {
-  console.error('Failed to initialize email transporter:', error);
-  console.log('Email service is not available. Continuing without email functionality.');
-  transporter = null; // Set to null to handle gracefully
+    // Verify transporter configuration but don't let it block startup
+    setTimeout(() => {
+      transporter.verify((error, success) => {
+        if (error) {
+          console.error('Email transporter configuration error:', error);
+          console.log('Email service is not available. Continuing without email functionality.');
+          transporter = null; // Disable transporter if verification fails
+        } else {
+          console.log('Email transporter is ready to send messages');
+        }
+      });
+    }, 2000); // Delay verification to not block startup
+    
+  } catch (error) {
+    console.error('Failed to initialize email transporter:', error);
+    console.log('Email service is not available. Continuing without email functionality.');
+  }
+} else {
+  console.log('Email environment variables not set. Continuing without email functionality.');
 }
 
 // Payment data storage (in production, use a database)
