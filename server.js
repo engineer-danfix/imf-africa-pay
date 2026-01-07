@@ -11,7 +11,7 @@ const app = express();
 
 // Enable CORS for all routes to handle cross-origin requests
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*', // Allow specific frontend URL in production, fallback to all origins
+  origin: process.env.FRONTEND_URL || 'https://imf-africa-pay-v4zb.onrender.com', // Allow specific frontend URL in production
   credentials: true
 }));
 app.use(express.json());
