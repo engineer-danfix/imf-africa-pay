@@ -36,17 +36,6 @@ const ExistingUserForm: React.FC = () => {
 
     setLoading(true);
     try {
-      // In a real implementation, you would verify the user details here
-      // For now, we'll just navigate to the form page
-      
-      // Prepare data for the next step
-      const userData = {
-        selectedOption,
-        identifier,
-        fullName,
-        existingUser: true
-      };
-
       // Submit the existing user data to the backend
       const res = await fetch(`${API_BASE}/api/payment`, {
         method: 'POST',
@@ -55,8 +44,8 @@ const ExistingUserForm: React.FC = () => {
         },
         body: JSON.stringify({
           name: fullName,
-          email: '', // Will be filled in next step
-          phone: '', // Will be filled in next step
+          email: '', // Will be collected in next step if needed
+          phone: '', // Will be collected in next step if needed
           plan: `${selectedOption.charAt(0).toUpperCase() + selectedOption.slice(1)} Renewal`,
           amount: 0 // Amount will be determined by the plan selection later
         }),
@@ -71,8 +60,17 @@ const ExistingUserForm: React.FC = () => {
         throw new Error(result.error || 'Failed to submit user details');
       }
 
-      showToast('User details verified successfully!', 'success');
-      navigate('/plan-selection', { state: { userData } });
+      showToast('Payment details submitted successfully!', 'success');
+      // Navigate directly to success page after submission
+      navigate('/success', { state: { 
+        plan: `${selectedOption.charAt(0).toUpperCase() + selectedOption.slice(1)} Renewal`,
+        existingUser: true,
+        userData: {
+          selectedOption,
+          identifier,
+          fullName
+        }
+      } });
     } catch (err: any) {
       setError(err.message || 'Failed to submit user details. Please try again.');
       showToast(err.message || 'Failed to submit user details. Please try again.', 'error');
@@ -90,7 +88,7 @@ const ExistingUserForm: React.FC = () => {
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-lg"
       >
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2 text-blue-700 dark:text-blue-400">Existing User</h1>
+          <h1 className="text-2xl font-bold mb-2 text-blue-700 dark:text-blue-400">Existing User Payment</h1>
           <p className="text-gray-600 dark:text-gray-300 text-sm">
             Please select your user type and provide the required information.
           </p>
@@ -182,7 +180,7 @@ const ExistingUserForm: React.FC = () => {
                 Processing...
               </>
             ) : (
-              'Next'
+              'Submit Payment'
             )}
           </motion.button>
         </form>
