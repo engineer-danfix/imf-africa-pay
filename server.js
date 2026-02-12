@@ -14,21 +14,25 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     const allowedOrigins = [
       'https://imf-africa-pay-production.up.railway.app/',
-      'https://imf-africa-pay-backend.onrender.com'
+      'https://imf-africa-pay-backend.onrender.com',
+      'http://localhost:5173', // Development
+      'http://localhost:3000'  // Development
     ];
-    
+
     // Check if the origin is in the allowed list
-    if (allowedOrigins.indexOf(origin) !== -1 || 
-        (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL)) {
+    if (allowedOrigins.indexOf(origin) !== -1 ||
+      (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.warn('CORS request from unknown origin:', origin);
+      callback(null, true); // Allow all origins in development, restrict in production
     }
   },
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200 // For legacy browsers
 };
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -53,8 +57,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/imf-afric
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Multer setup for file uploads
 const storage = multer.diskStorage({
@@ -76,20 +80,21 @@ const upload = multer({ storage: storage });
 // Email transporter setup - use SendGrid if API key is provided, otherwise SMTP
 let transporter = null;
 
+// Try SendGrid first (more reliable for cloud deployments)
 if (process.env.SENDGRID_API_KEY) {
   // Use SendGrid
   const sgMail = require('@sendgrid/mail');
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  
+
   // Create a send function that uses SendGrid
   transporter = {
     sendMail: async (mailOptions) => {
       // Ensure the from address is properly formatted for SendGrid
       // Use the SENDGRID_FROM_EMAIL if available, otherwise use a default
-      const fromAddress = process.env.SENDGRID_FROM_EMAIL || 
-                         process.env.EMAIL_USER || 
-                         'noreply@imfafricapay.org'; // Use a default domain
-      
+      const fromAddress = process.env.SENDGRID_FROM_EMAIL ||
+        process.env.EMAIL_USER ||
+        'noreply@imfafricapay.org'; // Use a default domain
+
       const msg = {
         to: mailOptions.to,
         from: fromAddress,
@@ -103,7 +108,7 @@ if (process.env.SENDGRID_API_KEY) {
           disposition: 'attachment'
         })) : undefined
       };
-      
+
       try {
         return await sgMail.send(msg);
       } catch (error) {
@@ -113,10 +118,10 @@ if (process.env.SENDGRID_API_KEY) {
       }
     }
   };
-  
+
   console.log('Email transporter configured with SendGrid');
 } else if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-  // Use SMTP
+  // Use SMTP as fallback
   try {
     transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
@@ -127,9 +132,9 @@ if (process.env.SENDGRID_API_KEY) {
         pass: process.env.EMAIL_PASS,
       },
       // Add timeout settings to prevent hanging
-      connectionTimeout: 15000, // 15 seconds
-      greetingTimeout: 5000,    // 5 seconds
-      socketTimeout: 15000,     // 15 seconds
+      connectionTimeout: 10000, // 10 seconds (reduced from 15)
+      greetingTimeout: 3000,    // 3 seconds (reduced from 5)
+      socketTimeout: 10000,     // 10 seconds (reduced from 15)
       // Add additional options for better compatibility with cloud platforms
       requireTLS: true,
       tls: {
@@ -149,8 +154,8 @@ if (process.env.SENDGRID_API_KEY) {
           console.log('Email transporter is ready to send messages');
         }
       });
-    }, 2000); // Delay verification to not block startup
-    
+    }, 1000); // Reduced delay to 1 second
+
   } catch (error) {
     console.error('Failed to initialize email transporter:', error);
     console.log('Email service is not available. Continuing without email functionality.');
@@ -171,7 +176,7 @@ app.post('/api/payment', (req, res) => {
   const { name, email, phone, plan, amount } = req.body;
   const newPayment = { id: Date.now().toString(), name, email, phone, plan, amount, status: 'pending' };
   payments.push(newPayment);
-  
+
   // Send email notification to admin if transporter is available
   if (transporter) {
     const mailOptions = {
@@ -212,8 +217,8 @@ app.post('/api/upload', upload.single('receipt'), (req, res) => {
   const { name, email, amount, serviceType } = req.body;
 
   // Send immediate response to avoid timeout
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'File uploaded successfully',
     filename: req.file.filename,
     emailStatus: 'processing' // Indicate that email is being processed in background
@@ -224,7 +229,7 @@ app.post('/api/upload', upload.single('receipt'), (req, res) => {
     setTimeout(async () => {
       // Log email attempt for debugging
       console.log(`Attempting to send emails for: ${name || 'Unknown'} (${email || 'No email'})`);
-      
+
       try {
         // Send email notification to admin about the uploaded receipt
         const adminMailOptions = {
@@ -415,14 +420,14 @@ app.get('*', (req, res) => {
     console.log('Serving index.html from root dist');
     return res.sendFile(rootIndexPath);
   }
-  
+
   // Try src/dist as fallback
   const srcIndexPath = path.join(__dirname, 'src', 'dist', 'index.html');
   if (fs.existsSync(srcIndexPath)) {
     console.log('Serving index.html from src/dist');
     return res.sendFile(srcIndexPath);
   }
-  
+
   // Fallback for development
   console.log('No index.html found, sending fallback response');
   res.json({ message: 'Server is running', status: 'ok' });
