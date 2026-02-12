@@ -16,11 +16,8 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'https://imf-africa-pay-klzv.onrender.com',
-      'https://imf-africa-pay-v4zb.onrender.com',
-      'https://imf-africa-pay-backend.onrender.com',
-      'http://localhost:5173',
-      'http://localhost:3000'
+      'https://imf-africa-pay-production.up.railway.app/',
+      'https://imf-africa-pay-backend.onrender.com'
     ];
     
     // Check if the origin is in the allowed list
