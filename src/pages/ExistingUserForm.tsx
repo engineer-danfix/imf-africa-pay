@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useToast } from '../components/ToastProvider';
 
-// Helper to get backend URL - use the backend URL when deployed separately
-// This allows the frontend to work with a separate backend deployment
-const API_BASE = import.meta.env.VITE_API_URL || 'https://imf-africa-pay-backend.onrender.com';
+// Use VITE_API_URL env variable if set (for separate frontend/backend deployments)
+// Default to empty string so fetch uses relative paths on the same origin
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const ExistingUserForm: React.FC = () => {
   const navigate = useNavigate();
@@ -62,15 +62,17 @@ const ExistingUserForm: React.FC = () => {
 
       showToast('Payment details submitted successfully!', 'success');
       // Navigate directly to success page after submission
-      navigate('/success', { state: { 
-        plan: `${selectedOption.charAt(0).toUpperCase() + selectedOption.slice(1)} Renewal`,
-        existingUser: true,
-        userData: {
-          selectedOption,
-          identifier,
-          fullName
+      navigate('/success', {
+        state: {
+          plan: `${selectedOption.charAt(0).toUpperCase() + selectedOption.slice(1)} Renewal`,
+          existingUser: true,
+          userData: {
+            selectedOption,
+            identifier,
+            fullName
+          }
         }
-      } });
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to submit user details. Please try again.');
       showToast(err.message || 'Failed to submit user details. Please try again.', 'error');
@@ -81,10 +83,10 @@ const ExistingUserForm: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 to-green-100 dark:from-gray-800 dark:to-gray-900 py-12 px-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.3 }} 
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-lg"
       >
         <div className="text-center mb-8">
@@ -93,38 +95,36 @@ const ExistingUserForm: React.FC = () => {
             Please select your user type and provide the required information.
           </p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col space-y-3">
             <label className="text-gray-700 dark:text-gray-300 font-semibold text-sm">Select User Type:</label>
-            
+
             <div className="flex space-x-4">
               <button
                 type="button"
                 onClick={() => setSelectedOption('membership')}
-                className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${
-                  selectedOption === 'membership'
+                className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${selectedOption === 'membership'
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
+                  }`}
               >
                 Membership
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => setSelectedOption('licensed')}
-                className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${
-                  selectedOption === 'licensed'
+                className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${selectedOption === 'licensed'
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
+                  }`}
               >
                 Licensed
               </button>
             </div>
           </div>
-          
+
           {selectedOption && (
             <div>
               <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">
@@ -136,8 +136,8 @@ const ExistingUserForm: React.FC = () => {
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 placeholder={
-                  selectedOption === 'membership' 
-                    ? 'Enter your membership number' 
+                  selectedOption === 'membership'
+                    ? 'Enter your membership number'
                     : 'Enter your IMF license number'
                 }
                 disabled={loading}
@@ -145,7 +145,7 @@ const ExistingUserForm: React.FC = () => {
               />
             </div>
           )}
-          
+
           {selectedOption && (
             <div>
               <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">
@@ -162,9 +162,9 @@ const ExistingUserForm: React.FC = () => {
               />
             </div>
           )}
-          
+
           {error && <div className="text-red-600 dark:text-red-400 text-xs bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg">{error}</div>}
-          
+
           <motion.button
             type="submit"
             whileTap={{ scale: 0.98 }}

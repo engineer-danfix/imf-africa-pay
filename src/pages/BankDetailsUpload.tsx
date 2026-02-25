@@ -11,9 +11,9 @@ const BANK_DETAILS = {
   accountNumber: '1223664859',
 };
 
-// Helper to get backend URL - use the backend URL when deployed separately
-// This allows the frontend to work with a separate backend deployment
-const API_BASE = import.meta.env.VITE_API_URL || 'https://imf-africa-pay-backend.onrender.com';
+// Use VITE_API_URL env variable if set (for separate frontend/backend deployments)
+// Default to empty string so fetch uses relative paths on the same origin
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const MAX_FILE_SIZE_MB = 5;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -79,22 +79,22 @@ const BankDetailsUpload: React.FC = () => {
       formData.append('amount', (plan?.amount || 0).toString());
       formData.append('serviceType', plan?.name || '');
       formData.append('reference', `IMF-${Date.now()}`);
-      
+
       const res = await fetch(`${API_BASE}/api/upload`, {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-      
+
       const result = await res.json();
       if (!result.success) {
         showToast(result.error || 'Failed to submit payment', 'error');
         throw new Error(result.error || 'Failed to submit payment');
       }
-      
+
       // Show success message - email will be sent in background
       if (result.emailStatus === 'processing') {
         showToast('Payment submitted successfully! Email notifications are being sent in the background.', 'success');
@@ -105,7 +105,7 @@ const BankDetailsUpload: React.FC = () => {
       } else {
         showToast('Payment submitted successfully!', 'success');
       }
-      
+
       // Navigate directly to success page instead of form
       navigate('/success', { state: { plan } });
     } catch (err: any) {
@@ -118,10 +118,10 @@ const BankDetailsUpload: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 to-green-100 dark:from-gray-800 dark:to-gray-900 py-12 px-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.3 }} 
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-lg"
       >
         <div className="text-center mb-8">
@@ -130,7 +130,7 @@ const BankDetailsUpload: React.FC = () => {
             Please transfer the amount to the account details below and upload your payment receipt.
           </p>
         </div>
-        
+
         <div className="mb-8 p-5 bg-blue-50 dark:bg-gray-700 rounded-xl">
           <h2 className="text-lg font-bold mb-4 text-center text-gray-800 dark:text-white">Bank Account Information</h2>
           <div className="space-y-3">
@@ -148,14 +148,14 @@ const BankDetailsUpload: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         {plan && (
           <div className="mb-6 p-3 bg-green-50 dark:bg-gray-700 rounded-lg text-center">
             <div className="text-sm text-gray-600 dark:text-gray-300">Selected Plan:</div>
             <div className="font-bold text-base text-green-700 dark:text-green-400">{plan.name} ({plan.price})</div>
           </div>
         )}
-        
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">Your Name:</label>
@@ -169,7 +169,7 @@ const BankDetailsUpload: React.FC = () => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">Your Email:</label>
             <input
@@ -182,7 +182,7 @@ const BankDetailsUpload: React.FC = () => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-2 text-sm">Upload Payment Receipt:</label>
             <div className="relative">
@@ -199,9 +199,9 @@ const BankDetailsUpload: React.FC = () => {
               Accepted formats: JPG, PNG, or PDF. Maximum file size: 5MB.
             </p>
           </div>
-          
+
           {error && <div className="text-red-600 dark:text-red-400 text-xs bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg">{error}</div>}
-          
+
           <motion.button
             type="submit"
             whileTap={{ scale: 0.98 }}

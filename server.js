@@ -16,19 +16,24 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      'https://imf-africa-pay-production.up.railway.app/',
-      'https://imf-africa-pay-backend.onrender.com',
+      'https://imf-africa-pay-ecal.onrender.com', // Production (Render)
+      'https://imf-africa-pay-production.up.railway.app',
       'http://localhost:5173', // Development
       'http://localhost:3000'  // Development
     ];
 
-    // Check if the origin is in the allowed list
-    if (allowedOrigins.indexOf(origin) !== -1 ||
-      (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL)) {
+    // Allow any *.onrender.com subdomain and any custom FRONTEND_URL env variable
+    const isOnRender = /^https:\/\/[\w-]+\.onrender\.com$/.test(origin);
+
+    if (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      isOnRender ||
+      (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL)
+    ) {
       callback(null, true);
     } else {
       console.warn('CORS request from unknown origin:', origin);
-      callback(null, true); // Allow all origins in development, restrict in production
+      callback(null, true); // Allow all origins for now
     }
   },
   credentials: true,
