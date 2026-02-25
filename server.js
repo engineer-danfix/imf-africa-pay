@@ -17,7 +17,6 @@ const corsOptions = {
 
     const allowedOrigins = [
       'https://imf-africa-pay-ecal.onrender.com', // Production (Render)
-      'https://imf-africa-pay-production.up.railway.app',
       'http://localhost:5173', // Development
       'http://localhost:3000'  // Development
     ];
