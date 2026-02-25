@@ -1,6 +1,8 @@
 node_modules
 .env
 .env.local
+src/.env
+src/.env.local
 uploads/
 dist/
 src/dist/
