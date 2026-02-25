@@ -11,9 +11,9 @@ const BANK_DETAILS = {
   accountNumber: '1223664859',
 };
 
-// Use VITE_API_URL env variable if set (for separate frontend/backend deployments)
-// Default to empty string so fetch uses relative paths on the same origin
-const API_BASE = import.meta.env.VITE_API_URL || '';
+// Dynamically resolve the API base URL at runtime from the browser
+// This is always correct regardless of environment - no env vars needed
+const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
 const MAX_FILE_SIZE_MB = 5;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];

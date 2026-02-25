@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useToast } from '../components/ToastProvider';
 
-// Use VITE_API_URL env variable if set (for separate frontend/backend deployments)
-// Default to empty string so fetch uses relative paths on the same origin
-const API_BASE = import.meta.env.VITE_API_URL || '';
+// Dynamically resolve the API base URL at runtime from the browser
+// This is always correct regardless of environment - no env vars needed
+const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
 const ExistingUserForm: React.FC = () => {
   const navigate = useNavigate();
@@ -105,8 +105,8 @@ const ExistingUserForm: React.FC = () => {
                 type="button"
                 onClick={() => setSelectedOption('membership')}
                 className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${selectedOption === 'membership'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                   }`}
               >
                 Membership
@@ -116,8 +116,8 @@ const ExistingUserForm: React.FC = () => {
                 type="button"
                 onClick={() => setSelectedOption('licensed')}
                 className={`flex-1 border rounded-lg py-2.5 px-3 text-sm ${selectedOption === 'licensed'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                   }`}
               >
                 Licensed
