@@ -84,20 +84,18 @@ const upload = multer({ storage: storage });
 // Email transporter setup - use SendGrid if API key is provided, otherwise SMTP
 let transporter = null;
 
-// Try SendGrid first (more reliable for cloud deployments)
+// Use SendGrid as primary email provider
 if (process.env.SENDGRID_API_KEY) {
-  // Use SendGrid
   const sgMail = require('@sendgrid/mail');
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-  // Create a send function that uses SendGrid
+  // Wrap sgMail.send in a sendMail-compatible interface
   transporter = {
     sendMail: async (mailOptions) => {
-      // Ensure the from address is properly formatted for SendGrid
-      // Use the SENDGRID_FROM_EMAIL if available, otherwise use a default
       const fromAddress = process.env.SENDGRID_FROM_EMAIL ||
+        process.env.EMAIL_FROM ||
         process.env.EMAIL_USER ||
-        'noreply@imfafricapay.org'; // Use a default domain
+        'noreply@imfafricapay.org';
 
       const msg = {
         to: mailOptions.to,
@@ -105,67 +103,64 @@ if (process.env.SENDGRID_API_KEY) {
         subject: mailOptions.subject,
         text: mailOptions.text,
         html: mailOptions.html,
-        attachments: mailOptions.attachments ? mailOptions.attachments.map(att => ({
-          content: fs.readFileSync(att.path).toString('base64'),
-          filename: att.filename,
-          type: att.contentType || att.mimetype,
-          disposition: 'attachment'
-        })) : undefined
       };
 
-      try {
-        return await sgMail.send(msg);
-      } catch (error) {
-        console.error('SendGrid error:', error);
-        // Return a promise rejection to maintain consistency with nodemailer
-        throw error;
+      // Handle attachments if present
+      if (mailOptions.attachments && mailOptions.attachments.length > 0) {
+        msg.attachments = mailOptions.attachments.map(att => ({
+          content: fs.readFileSync(att.path).toString('base64'),
+          filename: att.filename || att.originalname,
+          type: att.contentType || 'application/octet-stream',
+          disposition: 'attachment'
+        }));
       }
+
+      const result = await sgMail.send(msg);
+      // Return nodemailer-compatible info object
+      return { response: `SendGrid: ${result[0].statusCode}`, messageId: result[0].headers['x-message-id'] };
     }
   };
 
   console.log('Email transporter configured with SendGrid');
+
 } else if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
   // Use SMTP as fallback
   try {
+    const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
     transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT),
-      secure: parseInt(process.env.EMAIL_PORT) === 465, // Use secure connection for port 465
+      secure: parseInt(process.env.EMAIL_PORT) === 465,
       auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        pass: emailPass,
       },
-      // Add timeout settings to prevent hanging
-      connectionTimeout: 10000, // 10 seconds (reduced from 15)
-      greetingTimeout: 3000,    // 3 seconds (reduced from 5)
-      socketTimeout: 10000,     // 10 seconds (reduced from 15)
-      // Add additional options for better compatibility with cloud platforms
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
       requireTLS: true,
       tls: {
-        rejectUnauthorized: false, // This helps with self-signed certificates on some platforms
-        ciphers: 'SSLv3'
+        rejectUnauthorized: false
       }
     });
 
-    // Verify transporter configuration but don't let it block startup
-    setTimeout(() => {
-      transporter.verify((error, success) => {
-        if (error) {
-          console.error('Email transporter configuration error:', error);
-          console.log('Email service is not available. Continuing without email functionality.');
-          transporter = null; // Disable transporter if verification fails
-        } else {
-          console.log('Email transporter is ready to send messages');
-        }
-      });
-    }, 1000); // Reduced delay to 1 second
+    console.log('Email transporter configured with SMTP');
+
+    // Verify but never disable transporter on failure
+    transporter.verify((error) => {
+      if (error) {
+        console.warn('SMTP verify warning (will still attempt sends):', error.message);
+      } else {
+        console.log('SMTP transporter is ready to send messages');
+      }
+    });
 
   } catch (error) {
-    console.error('Failed to initialize email transporter:', error);
-    console.log('Email service is not available. Continuing without email functionality.');
+    console.error('Failed to initialize SMTP transporter:', error);
+    transporter = null;
   }
 } else {
-  console.log('Email environment variables not set. Continuing without email functionality.');
+  console.log('No email credentials set. Email functionality disabled.');
 }
 
 // Payment data storage (in production, use a database)
@@ -176,39 +171,32 @@ app.get('/api/payments', (req, res) => {
   res.json(payments);
 });
 
-app.post('/api/payment', (req, res) => {
+app.post('/api/payment', async (req, res) => {
   const { name, email, phone, plan, amount } = req.body;
   const newPayment = { id: Date.now().toString(), name, email, phone, plan, amount, status: 'pending' };
   payments.push(newPayment);
 
-  // Send email notification to admin if transporter is available
+  // Respond immediately
+  res.json({ success: true, payment: newPayment });
+
+  // Send email notification to admin in background if transporter is available
   if (transporter) {
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER || 'noreply@imfafricapay.org'}>`,
+      from: process.env.EMAIL_FROM || `"IMF Africa Pay" <${process.env.EMAIL_USER}>`,
       to: process.env.IMF_EMAIL || process.env.EMAIL_USER,
       subject: 'New Payment Received',
-      text: `A new payment has been received:
-
-Name: ${name}
-Email: ${email}
-Phone: ${phone}
-Plan: ${plan}
-Amount: ${amount}
-Status: pending`
+      text: `A new payment has been received:\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nPlan: ${plan}\nAmount: ${amount}\nStatus: pending`
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error('Email sending error:', error);
-      } else {
-        console.log('Email sent: ' + info.response);
-      }
-    });
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Admin payment notification email sent:', info.response);
+    } catch (error) {
+      console.error('Admin payment notification email failed:', error.message);
+    }
   } else {
     console.log('Email transporter not available, skipping email notification');
   }
-
-  res.json({ success: true, payment: newPayment });
 });
 
 // File upload route - Enhanced to send receipt email to user
